@@ -1,0 +1,12 @@
+# Development stuff
+.python-version
+tags
+GRTAGS
+GTAGS
+GPATH
+*.swp
+*.pyc
+library.db-journal
+
+public
+tmp
