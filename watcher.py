@@ -19,6 +19,9 @@ class EventHandler(pyinotify.ProcessEvent):
         print("Moved to:", event.pathname)
         library.update_track_filename(event.src_pathname, event.pathname)
 
+        # moving the file may also hint that the metadata has changed
+        library.update_file(event.pathname)
+
     def process_IN_MODIFY(self, event):
         print("Modified:", event.pathname)
         library.update_file(event.pathname)
