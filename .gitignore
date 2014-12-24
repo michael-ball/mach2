@@ -4,6 +4,7 @@ tags
 GRTAGS
 GTAGS
 GPATH
+cscope.out
 *.swp
 *.pyc
 library.db-journal
