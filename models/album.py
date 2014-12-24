@@ -87,22 +87,36 @@ class Album():
             set_clause = utils.update_clause_from_dict(dirty_attributes)
 
             dirty_attributes[id] = self.id
-            
+
             sql = " ".join(("UPDATE album"), set_clause, "WHERE id = :id")
             db.execute(sql, dirty_attributes)
             db.commit()
 
     def search(**search_params):
+        """Find an album with the given params
+
+        Args:
+            name: dict, with 'data' and 'operator' keys
+            date: dict, with 'data' and 'operator' keys
+            musicbrainz_albumid: dict, with 'data' and 'operator' keys
+        """
         albums = []
 
         db = DbManager()
 
-        where_clause = utils.make_where_clause(search_params)
+        # unpack search params
+        where_params = {}
+        value_params = {}
+        for (attr, value) in search_params.items():
+            where_params[attr] = value["operator"]
+            value_params[attr] = value["data"]
+
+        where_clause = utils.make_where_clause(where_params)
 
         result = None
         if where_clause:
             statement = " ".join(("SELECT * FROM album", where_clause))
-            result = db.execute(statement, search_params)
+            result = db.execute(statement, value_params)
         else:
             result = db.execute("SELECT * FROM album")
 

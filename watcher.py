@@ -1,5 +1,6 @@
 import atexit
 import configparser
+import os
 
 import pyinotify
 
@@ -13,7 +14,9 @@ class EventHandler(pyinotify.ProcessEvent):
 
     def process_IN_DELETE(self, event):
         print("Removing:", event.pathname)
-        library.delete_file(event.pathname)
+
+        if not os.path.isdir(event.pathname):
+            library.delete_file(event.pathname)
 
     def process_IN_MOVED_TO(self, event):
         print("Moved to:", event.pathname)
@@ -24,7 +27,9 @@ class EventHandler(pyinotify.ProcessEvent):
 
     def process_IN_MODIFY(self, event):
         print("Modified:", event.pathname)
-        library.update_file(event.pathname)
+
+        if not os.path.isdir(event.pathname):
+            library.update_file(event.pathname)
 
 
 class LibraryWatcher:

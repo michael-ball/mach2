@@ -1,23 +1,25 @@
-def make_where_clause(params):
-    """Create a where clause for each key-value pair in a dict, joined
-       by AND.
+def make_where_clause(params, join_operator="AND"):
+    """Create a where clause from the param.
 
-    Parameters
-    ----------
-    params : dict
-        A dict of keys and values
+    Args:
+        params : A dict where key is the column and the value a comparison
+            operator
+        join_operator: string to join comparisons. Should be "AND" or "OR"
     """
 
     where_items = []
     where_clause = None
 
     try:
-        for key in params.keys():
-            where_items.append("%s=:%s" % (key, key))
+        for (column, operator) in params.items():
+            condition_subphrase = " ".join(("%s", operator, ":%s"))
+            where_items.append(condition_subphrase % (column, column))
 
         where_statement = None
         if len(where_items) > 1:
-            where_statement = " AND ".join(where_items)
+            # surround join operator with spaces
+            join_string = "".join((" ", join_operator, " "))
+            where_statement = join_string.join(where_items)
         else:
             where_statement = where_items[0]
 
@@ -29,12 +31,10 @@ def make_where_clause(params):
 
 
 def update_clause_from_dict(data):
-    """Create an update clause from a dictionary
+    """Create an update clause
 
-    Parameters
-    __________
-    data: dict
-        A dict of the new value and the column name as key
+    Args:
+        data: A dict of the new value and the column name as key
     """
 
     update_items = []

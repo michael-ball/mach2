@@ -271,21 +271,37 @@ class Track:
             set_clause = utils.update_clause_from_dict(dirty_attributes)
 
             dirty_attributes[id] = self.id
-            
+
             sql = " ".join(("UPDATE track"), set_clause, "WHERE id = :id")
             db.execute(sql, dirty_attributes)
             db.commit()
 
     def search(**search_params):
+        """Find a track with the given params
+
+        Args:
+            tracknumber: dict, with 'data' and 'operator' keys
+            name: dict, with 'data' and 'operator' keys
+            grouping: dict, with 'data' and 'operator' keys
+            filename: dict, with 'data' and 'operator' keys
+        """
+
         db = DbManager()
         tracks = []
 
-        where_clause = utils.make_where_clause(search_params)
+        # unpack search params
+        where_params = {}
+        value_params = {}
+        for (attr, value) in search_params.items():
+            where_params[attr] = value["operator"]
+            value_params[attr] = value["data"]
+
+        where_clause = utils.make_where_clause(where_params)
 
         result = None
         if where_clause:
             statement = " ".join(("SELECT * FROM track", where_clause))
-            result = db.execute(statement, search_params)
+            result = db.execute(statement, value_params)
         else:
             result = db.execute("SELECT * FROM track")
 
