@@ -361,7 +361,7 @@ class Track:
 
         for artist_name in artist_names:
             musicbrainz_artistid = None
-            artistsort = None
+            artistsort = artist_name
             try:
                 musicbrainz_artistid = musicbrainz_artist_ids[i]
             except IndexError:
@@ -543,3 +543,28 @@ class Track:
         db.commit()
 
         return True
+
+    def all(order="track.id", direction="ASC", limit=None, offset=None):
+        db = DbManager()
+        tracks = []
+
+        select_string = """SELECT * FROM track LEFT JOIN artist_track ON
+            artist_track.track_id = track.id LEFT JOIN artist ON
+            artist_track.artist_id = artist.id LEFT JOIN album_track ON
+            album_track.track_id = track.id LEFT JOIN album ON
+            album_track.album_id = album.id ORDER BY %s %s""" % (order,
+                                                                 direction)
+
+        if limit is not None and offset is not None:
+            select_string = " ".join((select_string,
+                                     "LIMIT %s OFFSET %s" % (limit, offset)))
+
+        result = db.execute(select_string)
+
+        for row in result:
+            tracks.append(
+                Track(id=row[0], tracknumber=row[1], name=row[3],
+                      grouping=row[3], filename=row[4])
+            )
+
+        return tracks

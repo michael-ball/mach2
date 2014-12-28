@@ -12,8 +12,18 @@ def make_where_clause(params, join_operator="AND"):
 
     try:
         for (column, operator) in params.items():
-            condition_subphrase = " ".join(("%s", operator, ":%s"))
-            where_items.append(condition_subphrase % (column, column))
+            condition_subphrase = ""
+            
+            if operator == "BETWEEN":
+                condition_subphrase = " ".join(("%s", operator,
+                                                ":%s1 AND :%s2"))
+
+                where_items.append(condition_subphrase % (column, column,
+                                                          column))
+            else:
+                condition_subphrase = " ".join(("%s", operator, ":%s"))
+            
+                where_items.append(condition_subphrase % (column, column))
 
         where_statement = None
         if len(where_items) > 1:

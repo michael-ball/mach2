@@ -172,5 +172,5 @@ class DbManager:
     def __new__(self):
         if not DbManager.instance:
             DbManager.instance = DbManager.__DbManager()
-        
+
         return DbManager.instance

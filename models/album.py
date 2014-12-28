@@ -99,7 +99,8 @@ class Album():
             sql = " ".join(("UPDATE album"), set_clause, "WHERE id = :id")
             cursor.execute(sql, dirty_attributes)
 
-    def search(**search_params):
+    def search(order="album.id", direction="ASC", limit=None,
+               offset=None, **search_params):
         """Find an album with the given params
 
         Args:
@@ -117,7 +118,14 @@ class Album():
         value_params = {}
         for (attr, value) in search_params.items():
             where_params[attr] = value["operator"]
-            value_params[attr] = value["data"]
+
+            if value["operator"] == "BETWEEN":
+                items = value["data"].split(" ")
+
+                value_params["".join((attr, "1"))] = items[0]
+                value_params["".join((attr, "2"))] = items[2]
+            else:
+                value_params[attr] = value["data"]
 
         where_clause = utils.make_where_clause(where_params)
 
@@ -138,6 +146,7 @@ class Album():
     def all(order="album.id", direction="ASC", limit=None, offset=None):
         db = DbManager()
         cursor = db.cursor()
+
         albums = []
 
         select_string = """SELECT * FROM album LEFT JOIN album_artist ON

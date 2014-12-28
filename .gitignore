@@ -12,4 +12,9 @@ library.db-journal
 public
 tmp
 library.db
+bower_components
+node_modules
+library.db
 cscope.*
+static/scripts/libs/
+.jshintrc

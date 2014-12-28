@@ -1,0 +1,39 @@
+{
+  "name": "mach2",
+  "version": "0.0.1",
+  "homepage": "https://github.com/michael-ball/mach2",
+  "authors": [
+    "Michaël Ball"
+  ],
+  "description": "Lightweight media server",
+  "main": "mach2.py",
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular": "1.4.8",
+    "bootstrap": "3.3.5",
+    "moment": "~2.10.6",
+    "angular-moment": "~0.10.3",
+    "angular-ui-router": "~0.2.15",
+    "angular-bootstrap": "~0.14.3",
+    "angular-resource": "~1.4.8",
+    "moment-timezone": "~0.4.1"
+  },
+  "resolutions": {
+    "angular": "1.3.10"
+  },
+  "exportsOverride": {
+    "bootstrap": {
+      "js": "**/bootstrap*.js",
+      "css": "**/*.css*",
+      "fonts": "**/fonts"
+    }
+  }
+}

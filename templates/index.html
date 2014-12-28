@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-ng-app="mach2App">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mach2</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='scripts/libs/bootstrap/css/bootstrap.css') }}">
+  </head>
+  <body>
+    <div class="container">
+      <nav class="navbar navbar-inverse navbar" data-ng-controller="NavCtrl">
+        <div class="container-fluid">
+          <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse">
+              <span class="sr-only">Toggle navigation</span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">mach2</a>
+          </div>
+          <div class="collapse navbar-collapse" id="navbar-collapse">
+            <ul class="nav navbar-nav">
+              <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Music <span class="caret"></span></a>
+                <ul class="dropdown-menu" role="menu">
+                  <li><a href="#/artists">Artists</a></li>
+                  <li><a href="#/albums">Albums</a></li>
+                  <li><a href="#/tracks">Tracks</a></li>
+                </ul>
+              </li>
+              <li><a href="#">Settings</a></li>
+            </ul>
+            <ul class="nav navbar-nav navbar-right">
+              <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">{{ user.username }}<span class="caret"></span></a>
+                <ul class="dropdown-menu" role="menu">
+                  <li><a href="#">Change password</a></li>
+                  <li class="divider"></li>
+                  <li><a href="/logout">Log out</a></li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+      <div class="row" data-ui-view>
+      </div>
+    </div>
+    <script src="{{ url_for('static', filename='scripts/libs/jquery/jquery.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/bootstrap/js/bootstrap.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/moment/moment.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/moment-timezone/moment-timezone-with-data-2010-2020.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/angular/angular.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/angular-resource/angular-resource.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/angular-ui-router/angular-ui-router.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/angular-bootstrap/ui-bootstrap-tpls.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/libs/angular-moment/angular-moment.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/app/filters.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/app/services.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/app/controllers.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/app/app.js') }}"></script>
+  </body>
+</html>

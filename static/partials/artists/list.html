@@ -1,0 +1,28 @@
+<div class="row">
+  <div class="col-sm-offset-1 col-sm-11 col-xs-12">
+    <h2>Artists</h2>
+  </div>
+</div>
+<div class="row">
+  <div class="col-sm-offset-1 col-sm-6 col-xs-12">
+    <input type="text" class="form-control" data-ng-model="search" placeholder="Search for...">
+  </div>
+</div>
+<div class="row" data-ng-hide="search">
+  <div class="col-sm-1 hidden-xs text-center">
+    <div class="btn-group-vertical" role="group">
+      <label data-ng-repeat="i in indices" data-ng-model="$parent.selectedIndex" class="btn btn-default btn-sm" uib-btn-radio="'{{ i }}'" uncheckable>{{ i }}</label>
+    </div>
+  </div>
+  <div class="visible-xs-block col-xs-12">
+    <select data-ng-model="selectedIndex">
+      <option data-ng-repeat="i in indices" value="{{ i }}">{{ i }}</option>
+    </select>
+  </div>
+  <div class="col-sm-11 col-xs-12">
+    <p data-ng-repeat="artist in totalArtists | alphabetFilter:{attrs: ['sortname', 'name'], param: selectedIndex }"><a data-ui-sref="artistdetail({ artistId: artist.id })">{{ artist.name }}</a></p>
+  </div>
+</div>
+<div class="row" data-ng-show="search">
+  <p data-ng-repeat="artist in totalArtists | filter:search"><a data-ui-sref="artistdetail({ artistId: artist.id })">{{ artist.name }}</a></p>
+</div>

@@ -1,0 +1,16 @@
+{
+  "name": "mach2",
+  "version": "0.0.1",
+  "description": "Lightweight media server",
+  "homepage": "https://github.com/michael-ball/mach2",
+  "license": "MIT",
+  "author": {
+    "name": "Michaël Ball",
+    "url": "https://www.github.com/michael-ball"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.5",
+    "grunt-bower-task": "^0.4.0",
+    "grunt-run": "^0.3.0"
+  }
+}

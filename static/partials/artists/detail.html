@@ -1,0 +1,12 @@
+<div class="col-xs-12">
+  <h3>{{ artist.name }}</h3>
+
+  <h4>Albums</h4>
+  <ul>
+    <li data-ng-repeat="album in albums">{{album.name}} ({{ album.date | amDateFormat: 'YYYY':'':'':'YYYY-MM-DD' }})</li>
+  </ul>
+
+  <p><a data-ui-sref="artistdetail.tracks({ artistId: artist.id })">View artist tracks</a></p>
+</div>
+<div class="row" data-ui-view>
+</div>

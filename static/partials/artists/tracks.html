@@ -1,0 +1,7 @@
+<div class="col-xs-12">
+    <h3>{{ artist.name }}'s Tracks</h3>
+
+    <ul>
+        <li data-ng-repeat="track in tracks"><a href="/tracks/{{track.id}}">{{ track.name }}</a></li>
+    </ul>
+</div>
