@@ -100,7 +100,7 @@ class Track:
 
             if musicbrainz_artistid:
                 rows = c.execute("""SELECT * FROM artist WHERE
-                    musicbrainz_artist_id = ?""",
+                    musicbrainz_artistid = ?""",
                                  (musicbrainz_artistid,))
             else:
                 rows = c.execute("""SELECT * FROM artist WHERE
@@ -111,7 +111,7 @@ class Track:
             if row:
                 artist = Artist(id=row[0], name=row[1],
                                 sortname=row[2],
-                                musicbrainz_artist_id=row[3])
+                                musicbrainz_artistid=row[3])
 
                 if artist.name != artist_name:
                     c.execute("""UPDATE artist SET name = ? WHERE id = ?""",
@@ -125,14 +125,14 @@ class Track:
 
             else:
                 c.execute("""INSERT INTO artist
-                    (name, sortname, musicbrainz_artist_id) VALUES(
+                    (name, sortname, musicbrainz_artistid) VALUES(
                     ?,?,?)""", (artist_name, artistsort,
                                 musicbrainz_artistid))
 
                 artist = Artist(
                     id=c.lastrowid, name=artist_name,
                     sortname=artistsort,
-                    musicbrainz_artist_id=musicbrainz_artistid
+                    musicbrainz_artistid=musicbrainz_artistid
                 )
 
                 i += 1
@@ -324,6 +324,9 @@ class Track:
         return track
 
     def store(filename, metadata):
+        if Track.find_by_path(filename):
+            return True
+
         db = DbManager()
         c = db.cursor()
 
@@ -355,28 +358,49 @@ class Track:
                 pass
 
             rows = None
+            row = None
             if musicbrainz_artistid:
                 rows = c.execute("""SELECT * FROM artist WHERE
-                    musicbrainz_artist_id = ?""",
+                    musicbrainz_artistid = ?""",
                                  (musicbrainz_artistid,))
-            else:
+                row = rows.fetchone()
+
+            if not row:
                 rows = c.execute("""SELECT * FROM artist WHERE
-                    name = ?""", (artist_name,))
-            row = rows.fetchone()
+                    name = ? AND musicbrainz_artistid IS NULL""",
+                                 (artist_name,))
+                row = rows.fetchone()
+
             if row:
                 artist = Artist(id=row[0], name=row[1],
                                 sortname=row[2],
-                                musicbrainz_artist_id=row[3])
+                                musicbrainz_artistid=row[3])
+
+                if (musicbrainz_artistid and 
+                        (not hasattr(artist, "musicbrainz_artistid")
+                            or not artist.musicbrainz_artistid)):
+                    c.execute("""UPDATE artist SET
+                        musicbrainz_artistid = ? WHERE id = ?""",
+                              (musicbrainz_artistid, artist.id))
+
+                if (artistsort and
+                        (not hasattr(artist, "sortname")
+                            or not artist.sortname)):
+                    c.execute("""UPDATE artist SET
+                            sortname = ? WHERE id = ?""",
+                              (artistsort, artist.id))
+                    db.commit()
+
             else:
                 c.execute("""INSERT INTO artist
-                    (name, sortname, musicbrainz_artist_id) VALUES(
+                    (name, sortname, musicbrainz_artistid) VALUES(
                     ?,?,?)""", (artist_name, artistsort,
                                 musicbrainz_artistid))
 
                 artist = Artist(
                     id=c.lastrowid, name=artist_name,
                     sortname=artistsort,
-                    musicbrainz_artist_id=musicbrainz_artistid
+                    musicbrainz_artistid=musicbrainz_artistid
                 )
 
                 i += 1
@@ -422,21 +446,22 @@ class Track:
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
-            rows = c.execute(
-                """SELECT album.* FROM album INNER JOIN album_artist ON
-                album_artist.album_id = album.id WHERE album.name = ?
-                AND artist_id = ?""", (album_name, artist.id)
-            )
-            row = rows.fetchone()
+            for artist in artists:
+                rows = c.execute(
+                    """SELECT album.* FROM album INNER JOIN album_artist ON
+                    album_artist.album_id = album.id WHERE album.name = ?
+                    AND artist_id = ?""", (album_name, artist.id)
+                )
+                row = rows.fetchone()
 
-            if row:
-                album = Album(id=row[0], name=row[1], date=row[2])
-            else:
-                c.execute("""INSERT INTO album (name, `date`) VALUES
-                (?,?)""", (album_name, album_date))
+                if row:
+                    album = Album(id=row[0], name=row[1], date=row[2])
+                else:
+                    c.execute("""INSERT INTO album (name, `date`) VALUES
+                    (?,?)""", (album_name, album_date))
 
-                album = Album(id=c.lastrowid, name=album_name,
-                              date=album_date)
+                    album = Album(id=c.lastrowid, name=album_name,
+                                  date=album_date)
 
         for artist in artists:
             if album:
