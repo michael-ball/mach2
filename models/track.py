@@ -364,11 +364,15 @@ class Track:
                     musicbrainz_artistid = ?""",
                                  (musicbrainz_artistid,))
                 row = rows.fetchone()
+                if not row:
+                    rows = c.execute("""SELECT * FROM artist WHERE
+                        name = ? AND musicbrainz_artistid IS NULL""",
+                                     (artist_name,))
+                    row = rows.fetchone()
 
             if not row:
                 rows = c.execute("""SELECT * FROM artist WHERE
-                    name = ? AND musicbrainz_artistid IS NULL""",
-                                 (artist_name,))
+                    name = ?""", (artist_name,))
                 row = rows.fetchone()
 
             if row:
@@ -376,7 +380,7 @@ class Track:
                                 sortname=row[2],
                                 musicbrainz_artistid=row[3])
 
-                if (musicbrainz_artistid and 
+                if (musicbrainz_artistid and
                         (not hasattr(artist, "musicbrainz_artistid")
                             or not artist.musicbrainz_artistid)):
                     c.execute("""UPDATE artist SET
