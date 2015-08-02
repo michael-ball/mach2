@@ -6,8 +6,10 @@ class Artist:
     def __init__(self, id=None, **kwargs):
         if id is not None:
             db = DbManager()
-            for row in db.execute("""SELECT * FROM artist WHERE id = ?""",
-                                  (id,)):
+            cursor = db.cursor()
+
+            for row in cursor.execute("SELECT * FROM artist WHERE id = ?",
+                                      (id,)):
                 setattr(self, "id", id)
                 setattr(self, "name", row[1])
                 setattr(self, "sortname", row[2])
@@ -18,20 +20,19 @@ class Artist:
 
     def delete(self):
         db = DbManager()
+        cursor = db.cursor()
 
         for album in self.albums:
             album.delete()
 
         delete_sql = "DELETE FROM artist WHERE id = ?"
-        db.execute(delete_sql, (self.id,))
+        cursor.execute(delete_sql, (self.id,))
 
         delete_track_rel_sql = "DELETE FROM artist_track WHERE artist_id = ?"
-        db.execute(delete_track_rel_sql, (self.id,))
+        cursor.execute(delete_track_rel_sql, (self.id,))
 
         delete_album_rel_sql = "DELETE FROM album_artist WHERE artist_id = ?"
-        db.execute(delete_album_rel_sql, (self.id,))
-
-        db.commit()
+        cursor.execute(delete_album_rel_sql, (self.id,))
 
         return True
 
@@ -43,11 +44,12 @@ class Artist:
             setattr(self, "_tracks", [])
 
             db = DbManager()
+            cursor = db.cursor()
 
-            for row in db.execute("""SELECT track.* FROM track
-                                  INNER JOIN artist_track ON track.id =
-                                  artist_track.track_id WHERE artist_id = ?
-                                  ORDER BY name ASC""", (self.id,)):
+            for row in cursor.execute("""SELECT track.* FROM track
+                                      INNER JOIN artist_track ON track.id =
+                                      artist_track.track_id WHERE artist_id = ?
+                                      ORDER BY name ASC""", (self.id,)):
 
                 track = Track(id=row[0], tracknumber=row[1], name=row[2],
                               grouping=row[3], filename=row[4])
@@ -63,11 +65,12 @@ class Artist:
             setattr(self, "_albums", [])
 
             db = DbManager()
+            cursor = db.cursor()
 
-            for row in db.execute("""SELECT album.* FROM album
-                                  INNER JOIN album_artist ON album.id =
-                                  album_artist.album_id WHERE artist_id = ?
-                                  ORDER BY date ASC""", (self.id,)):
+            for row in cursor.execute("""SELECT album.* FROM album
+                                      INNER JOIN album_artist ON album.id =
+                                      album_artist.album_id WHERE artist_id = ?
+                                      ORDER BY date ASC""", (self.id,)):
                 album = Album(id=row[0], name=row[1], date=row[2])
                 self._albums.append(album)
 
@@ -83,14 +86,14 @@ class Artist:
 
         if len(dirty_attributes) > 0:
             db = DbManager()
+            cursor = db.cursor()
 
             set_clause = utils.update_clause_from_dict(dirty_attributes)
 
             dirty_attributes[id] = self.id
 
             sql = " ".join(("UPDATE artist"), set_clause, "WHERE id = :id")
-            db.execute(sql, dirty_attributes)
-            db.commit()
+            cursor.execute(sql, dirty_attributes)
 
     def search(**search_params):
         """Find an artist with the given params
@@ -103,6 +106,7 @@ class Artist:
         artists = []
 
         db = DbManager()
+        cursor = db.cursor()
 
         # unpack search params
         where_params = {}
@@ -116,9 +120,9 @@ class Artist:
         result = []
         if where_clause:
             statement = " ".join(("SELECT * FROM artist", where_clause))
-            result = db.execute(statement, value_params)
+            result = cursor.execute(statement, value_params)
         else:
-            result = db.execute("SELECT * FROM artist")
+            result = cursor.execute("SELECT * FROM artist")
 
         for row in result:
             artists.append(

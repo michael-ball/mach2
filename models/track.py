@@ -1,4 +1,4 @@
-import sqlite3
+import apsw
 
 from common import utils
 from db.db_manager import DbManager
@@ -14,8 +14,10 @@ class Track:
 
         if id is not None:
             db = DbManager()
-            for row in db.execute("""SELECT * FROM track WHERE id = ?""",
-                                  (id,)):
+            cursor = db.cursor()
+
+            for row in cursor.execute("""SELECT * FROM track WHERE id = ?""",
+                                      (id,)):
                 setattr(self, "id", row[0])
                 setattr(self, "tracknumber", row[1])
                 setattr(self, "name", row[2])
@@ -28,10 +30,10 @@ class Track:
 
     def delete(self):
         db = DbManager()
+        cursor = db.cursor()
 
         delete_sql = "DELETE FROM track WHERE id = ?"
-        db.execute(delete_sql, (self.id,))
-        db.commit()
+        cursor.execute(delete_sql, (self.id,))
 
         return True
 
@@ -41,11 +43,12 @@ class Track:
             setattr(self, "_album", None)
 
             db = DbManager()
+            cursor = db.cursor()
 
-            for row in db.execute("""SELECT album.* FROM album INNER JOIN
-                                  album_track ON album.id =
-                                  album_track.album_id WHERE track_id = ?
-                                  LIMIT 1""", (self.id,)):
+            for row in cursor.execute("""SELECT album.* FROM album INNER JOIN
+                                      album_track ON album.id =
+                                      album_track.album_id WHERE track_id = ?
+                                      LIMIT 1""", (self.id,)):
                 setattr(self, "_album", Album(row[0]))
 
         return self._album
@@ -54,12 +57,13 @@ class Track:
     def artists(self):
         if not hasattr(self, "_artists"):
             db = DbManager()
+            cursor = db.cursor()
 
             setattr(self, "_artists", [])
-            for row in db.execute("""SELECT artist.* FROM artist INNER JOIN
-                                  artist_track ON artist.id =
-                                  artist_track.artist_id WHERE
-                                  artist.id = ?""", (self.id,)):
+            for row in cursor.execute("""SELECT artist.* FROM artist INNER JOIN
+                                      artist_track ON artist.id =
+                                      artist_track.artist_id WHERE
+                                      artist.id = ?""", (self.id,)):
                 self._artists.append(Artist(row[0]))
 
         return self._artists
@@ -130,7 +134,7 @@ class Track:
                                 musicbrainz_artistid))
 
                 artist = Artist(
-                    id=c.lastrowid, name=artist_name,
+                    id=db.last_insert_rowid(), name=artist_name,
                     sortname=artistsort,
                     musicbrainz_artistid=musicbrainz_artistid
                 )
@@ -174,7 +178,7 @@ class Track:
                           musicbrainz_albumid) VALUES (?,?,?)""",
                           (album_name, album_date, mb_albumid))
 
-                album = Album(id=c.lastrowid, name=album_name,
+                album = Album(id=db.last_insert_rowid(), name=album_name,
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
@@ -191,7 +195,7 @@ class Track:
                 c.execute("""INSERT INTO album (name, `date`) VALUES
                 (?,?)""", (album_name, album_date))
 
-                album = Album(id=c.lastrowid, name=album_name,
+                album = Album(id=db.last_insert_rowid(), name=album_name,
                               date=album_date)
 
         if album:
@@ -213,7 +217,7 @@ class Track:
                         album_id) VALUES(?,?)""",
                         (artist.id, album.id)
                     )
-                except sqlite3.IntegrityError:
+                except apsw.ConstraintError:
                     pass
 
         track_number = None
@@ -242,7 +246,7 @@ class Track:
                 c.execute("""INSERT INTO album_track (album_id,
                           track_id) VALUES(?,?)""",
                           (album.id, self.id))
-            except sqlite3.IntegrityError:
+            except apsw.ConstraintError:
                 pass
 
         for artist in artists:
@@ -250,11 +254,9 @@ class Track:
                 c.execute("""INSERT INTO artist_track
                           (artist_id, track_id) VALUES(?,?)""",
                           (artist.id, self.id))
-            except sqlite3.IntegrityError:
+            except apsw.ConstraintError:
                 pass
 
-        db.commit()
-        c.close()
         return True
 
     def save(self):
@@ -267,14 +269,14 @@ class Track:
 
         if len(dirty_attributes) > 0:
             db = DbManager()
+            cursor = db.cursor()
 
             set_clause = utils.update_clause_from_dict(dirty_attributes)
 
             dirty_attributes[id] = self.id
 
             sql = " ".join(("UPDATE track"), set_clause, "WHERE id = :id")
-            db.execute(sql, dirty_attributes)
-            db.commit()
+            cursor.execute(sql, dirty_attributes)
 
     def search(**search_params):
         """Find a track with the given params
@@ -287,6 +289,7 @@ class Track:
         """
 
         db = DbManager()
+        cursor = db.cursor()
         tracks = []
 
         # unpack search params
@@ -301,9 +304,9 @@ class Track:
         result = None
         if where_clause:
             statement = " ".join(("SELECT * FROM track", where_clause))
-            result = db.execute(statement, value_params)
+            result = cursor.execute(statement, value_params)
         else:
-            result = db.execute("SELECT * FROM track")
+            result = cursor.execute("SELECT * FROM track")
 
         for row in result:
             tracks.append(
@@ -315,10 +318,11 @@ class Track:
 
     def find_by_path(path):
         db = DbManager()
+        cursor = db.cursor()
         track = None
 
-        for row in db.execute("SELECT * FROM track WHERE filename = ? LIMIT 1",
-                              (path,)):
+        for row in cursor.execute("""SELECT * FROM track WHERE filename = ?
+                                  LIMIT 1""", (path,)):
             track = Track(row[0])
 
         return track
@@ -393,7 +397,6 @@ class Track:
                     c.execute("""UPDATE artist SET
                             sortname = ? WHERE id = ?""",
                               (artistsort, artist.id))
-                    db.commit()
 
             else:
                 c.execute("""INSERT INTO artist
@@ -402,7 +405,7 @@ class Track:
                                 musicbrainz_artistid))
 
                 artist = Artist(
-                    id=c.lastrowid, name=artist_name,
+                    id=db.last_insert_rowid(), name=artist_name,
                     sortname=artistsort,
                     musicbrainz_artistid=musicbrainz_artistid
                 )
@@ -446,7 +449,7 @@ class Track:
                           musicbrainz_albumid) VALUES (?,?,?)""",
                           (album_name, album_date, mb_albumid))
 
-                album = Album(id=c.lastrowid, name=album_name,
+                album = Album(id=db.last_insert_rowid(), name=album_name,
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
@@ -464,7 +467,7 @@ class Track:
                     c.execute("""INSERT INTO album (name, `date`) VALUES
                     (?,?)""", (album_name, album_date))
 
-                    album = Album(id=c.lastrowid, name=album_name,
+                    album = Album(id=db.last_insert_rowid(), name=album_name,
                                   date=album_date)
 
         for artist in artists:
@@ -475,7 +478,7 @@ class Track:
                         album_id) VALUES(?,?)""",
                         (artist.id, album.id)
                     )
-                except sqlite3.IntegrityError:
+                except apsw.ConstraintError:
                     pass
 
         track_number = None
@@ -507,7 +510,7 @@ class Track:
                       (track_number, track_name, track_grouping,
                        filename))
 
-            track = Track(id=c.lastrowid, tracknumber=track_number,
+            track = Track(id=db.last_insert_rowid(), tracknumber=track_number,
                           name=track_name, grouping=track_grouping,
                           filename=filename)
 
@@ -516,7 +519,7 @@ class Track:
                 c.execute("""INSERT INTO album_track (album_id,
                           track_id) VALUES(?,?)""",
                           (album.id, track.id))
-            except sqlite3.IntegrityError:
+            except apsw.ConstraintError:
                 pass
 
         for artist in artists:
@@ -524,9 +527,7 @@ class Track:
                 c.execute("""INSERT INTO artist_track
                           (artist_id, track_id) VALUES(?,?)""",
                           (artist.id, track.id))
-            except sqlite3.IntegrityError:
+            except apsw.ConstraintError:
                 pass
 
-        db.commit()
-        c.close()
         return True
