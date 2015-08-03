@@ -11,24 +11,33 @@ class DbManager:
 
         def __init__(self):
             new_db = False
+            cache_size_kb = 9766
 
             if not os.path.isfile(self.config["DEFAULT"]["database"]):
                 new_db = True
 
-            self.conn = apsw.Connection(self.config["DEFAULT"]["database"],
-                                        apsw.SQLITE_OPEN_READWRITE |
-                                        apsw.SQLITE_OPEN_CREATE)
-
             if new_db:
+                self.conn = apsw.Connection(":memory:")
                 self.create_tables()
             else:
+                self.conn = apsw.Connection(self.config["DEFAULT"]["database"])
                 library_info = os.stat(self.config["DEFAULT"]["database"])
                 cache_size_kb = round((library_info.st_size * 1.2) / 1024)
 
                 cursor = self.conn.cursor()
                 # Setting pragma with ? placeholder errors out
-                cursor.execute("pragma cache_size=%s" % cache_size_kb)
+                cursor.execute("pragma cache_size=-%s" % cache_size_kb)
                 cursor.close()
+
+        def __del__(self):
+            if not os.path.isfile(self.config["DEFAULT"]["database"]):
+                tempconn = apsw.Connection(self.config["DEFAULT"]["database"],
+                                           apsw.SQLITE_OPEN_READWRITE |
+                                           apsw.SQLITE_OPEN_CREATE)
+
+                with tempconn.backup("main", 
+                                     self.conn, "main") as backup:
+                    backup.step()
 
         def __str__(self):
             return repr(self)

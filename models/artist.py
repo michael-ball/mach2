@@ -131,3 +131,25 @@ class Artist:
             )
 
         return artists
+
+    def all(order="sortname", direction="ASC", limit=None, offset=None):
+        db = DbManager()
+        cursor = db.cursor()
+        artists = []
+
+        select_string = """SELECT * FROM artist ORDER BY %s %s""" % (order,
+                                                                     direction)
+
+        if limit is not None and offset is not None:
+            select_string = " ".join((select_string,
+                                     "LIMIT %s OFFSET %s" % (limit, offset)))
+
+        result = cursor.execute(select_string)
+
+        for row in result:
+            artists.append(
+                Artist(id=row[0], name=row[1], sortname=row[2],
+                       musicbrainz_artistid=row[3])
+            )
+
+        return artist
