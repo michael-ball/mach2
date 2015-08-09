@@ -24,6 +24,8 @@ class Album():
         for track in self.tracks:
             track.delete()
 
+        cursor.execute("BEGIN TRANSACTION")
+
         delete_sql = "DELETE FROM album WHERE id = ?"
         cursor.execute(delete_sql, (self.id,))
 
@@ -32,6 +34,8 @@ class Album():
 
         delete_artist_rel_sql = "DELETE FROM album_artist WHERE album_id = ?"
         cursor.execute(delete_artist_rel_sql, (self.id,))
+
+        cursor.execute("COMMIT TRANSACTION")
 
         return True
 

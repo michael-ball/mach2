@@ -25,6 +25,8 @@ class Artist:
         for album in self.albums:
             album.delete()
 
+        cursor.execute("BEGIN TRANSACTION")
+
         delete_sql = "DELETE FROM artist WHERE id = ?"
         cursor.execute(delete_sql, (self.id,))
 
@@ -33,6 +35,8 @@ class Artist:
 
         delete_album_rel_sql = "DELETE FROM album_artist WHERE artist_id = ?"
         cursor.execute(delete_album_rel_sql, (self.id,))
+
+        cursor.execute("COMMIT TRANSACTION")
 
         return True
 
@@ -152,4 +156,4 @@ class Artist:
                        musicbrainz_artistid=row[3])
             )
 
-        return artist
+        return artists

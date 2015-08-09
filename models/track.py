@@ -72,6 +72,8 @@ class Track:
         db = DbManager()
         c = db.cursor()
 
+        c.execute("BEGIN TRANSACTION")
+
         artist_names = metadata["artist"]
         musicbrainz_artist_ids = []
         artistsorts = []
@@ -257,6 +259,8 @@ class Track:
             except apsw.ConstraintError:
                 pass
 
+        c.execute("COMMIT TRANSACTION")
+
         return True
 
     def save(self):
@@ -333,6 +337,8 @@ class Track:
 
         db = DbManager()
         c = db.cursor()
+
+        c.execute("BEGIN TRANSACTION")
 
         artist_names = metadata["artist"]
         musicbrainz_artist_ids = []
@@ -529,5 +535,7 @@ class Track:
                           (artist.id, track.id))
             except apsw.ConstraintError:
                 pass
+
+        c.execute("COMMIT TRANSACTION")
 
         return True
