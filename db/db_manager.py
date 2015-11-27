@@ -1,13 +1,64 @@
 import configparser
 import os
-
-import apsw
+import sqlite3
+import tempfile
 
 
 class DbManager:
     class __DbManager:
         config = configparser.ConfigParser()
         config.read("mach2.ini")
+
+        def iterdump(connection):
+            cu = connection.cursor()
+            yield("BEGIN TRANSACTION;")
+
+            q = """
+                SELECT "name", "type", "sql"
+                FROM "sqlite_master"
+                    WHERE "sql" NOT NULL AND
+                    "type" == 'table'
+                    ORDER BY "name";
+                """
+            schema_res = cu.execute(q).fetchall()
+            for table_name, type, sql in schema_res:
+                if table_name == "sqlite_sequence":
+                    yield("DELETE FROM \"sqlite_sequence\";")
+                elif table_name == "sqlite_stat1":
+                    yield("ANALYZE \"sqlite_master\";")
+                elif table_name.startswith("sqlite_"):
+                    continue
+                else:
+                    yield("{0};".format(sql))
+
+                table_name_ident = table_name.replace("\"", "\"\"")
+                res = cu.execute(
+                    "PRAGMA table_info(\"{0}\")".format(table_name_ident))
+                column_names = [
+                    str(table_info[1]) for table_info in res.fetchall()]
+                q = """
+                    SELECT 'INSERT INTO "{0}" VALUES({1})' FROM "{0}";
+                    """.format(
+                        table_name_ident,
+                        ",".join(
+                            """'||quote("{0}")||'""".format(
+                                col.replace(
+                                    "\"", "\"\"")) for col in column_names))
+                query_res = cu.execute(q)
+                for row in query_res:
+                    yield("{0};".format(row[0]))
+
+            q = """
+                SELECT "name", "type", "sql"
+                FROM "sqlite_master"
+                    WHERE "sql" NOT NULL AND
+                    "type" IN ('index', 'trigger', 'view')
+                """
+            schema_res = cu.execute(q)
+            for name, type, sql in schema_res.fetchall():
+                yield("{0};".format(sql))
+
+            yield("COMMIT;")
 
         def __init__(self):
             new_db = False
@@ -17,30 +68,39 @@ class DbManager:
                 new_db = True
 
             if new_db:
-                self.conn = apsw.Connection(":memory:")
+                self.conn = sqlite3.connect(":memory:")
                 self.create_tables()
             else:
-                self.conn = apsw.Connection(self.config["DEFAULT"]["database"])
+                self.conn = sqlite3.connect(self.config["DEFAULT"]["database"])
                 library_info = os.stat(self.config["DEFAULT"]["database"])
                 cache_size_kb = round((library_info.st_size * 1.2) / 1024)
 
                 cursor = self.conn.cursor()
-                # Setting pragma with ? placeholder errors out
+                # Setting pragma with ? placeholder produces an error
                 cursor.execute("pragma cache_size=-%s" % cache_size_kb)
                 cursor.close()
 
+            self.conn.row_factory = sqlite3.Row
+
         def __del__(self):
             if not os.path.isfile(self.config["DEFAULT"]["database"]):
-                tempconn = apsw.Connection(self.config["DEFAULT"]["database"],
-                                           apsw.SQLITE_OPEN_READWRITE |
-                                           apsw.SQLITE_OPEN_CREATE)
+                script = ""
 
-                with tempconn.backup("main", 
-                                     self.conn, "main") as backup:
-                    backup.step()
+                for line in DbManager.__DbManager.iterdump(self.conn):
+                    script = "\n".join((script, line))
+
+                tempconn = sqlite3.connect(
+                    self.config["DEFAULT"]["database"])
+                tempcur = tempconn.cursor()
+
+                tempcur.executescript(script)
+                tempcur.close()
 
         def __str__(self):
             return repr(self)
+
+        def commit(self):
+            return self.conn.commit()
 
         def cursor(self):
             return self.conn.cursor()
@@ -50,9 +110,6 @@ class DbManager:
 
         def interrupt(self):
             return self.conn.interrupt()
-
-        def last_insert_rowid(self):
-            return self.conn.last_insert_rowid()
 
         def create_tables(self):
             cursor = self.conn.cursor()

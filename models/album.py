@@ -134,3 +134,26 @@ class Album():
             )
 
         return albums
+
+    def all(order="album.id", direction="ASC", limit=None, offset=None):
+        db = DbManager()
+        cursor = db.cursor()
+        albums = []
+
+        select_string = """SELECT * FROM album LEFT JOIN album_artist ON
+            album_artist.album_id = album.id LEFT JOIN artist ON
+            album_artist.artist_id = artist.id ORDER BY %s %s""" % (order,
+                                                                    direction)
+
+        if limit is not None and offset is not None:
+            select_string = " ".join((select_string,
+                                     "LIMIT %s OFFSET %s" % (limit, offset)))
+
+        result = cursor.execute(select_string)
+
+        for row in result:
+            albums.append(
+                Album(id=row[0], name=row[1], date=row[2])
+            )
+
+        return albums

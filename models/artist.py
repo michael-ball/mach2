@@ -141,8 +141,8 @@ class Artist:
         cursor = db.cursor()
         artists = []
 
-        select_string = """SELECT * FROM artist ORDER BY %s %s""" % (order,
-                                                                     direction)
+        select_string = "SELECT * FROM artist ORDER BY %s %s" % (order,
+                                                                 direction)
 
         if limit is not None and offset is not None:
             select_string = " ".join((select_string,

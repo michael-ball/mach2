@@ -1,14 +1,29 @@
 #!/usr/bin/env python
 import configparser
+import gevent
+from gevent import queue
+import logging
 import mutagen
 import os
 
 from models.track import Track
 
 
-def run(path=None):
-    print("Scanning files")
+file_store = queue.Queue()
 
+logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
+
+
+def store_track_task():
+    while not file_store.empty():
+        path = file_store.get()
+        m = mutagen.File(path, easy=True)
+        Track.store(path, m)
+
+        gevent.sleep(0)
+
+
+def run(path=None):
     if path is not None:
         if os.path.isdir(path):
             store_dir(path)
@@ -26,30 +41,21 @@ def store_file(path):
 
 
 def store_dir(path):
-    file_store = []
+    logger = logging.getLogger("store_dir")
+    logger.info("Scanning files")
 
+    allowed_extensions = [".mp3", ".ogg", ".flac", ".wav", ".aac", ".ape"]
     for root, dirs, files in os.walk(path):
         for name in files:
             file_path = "".join([root, "/", name])
-            file_store.append(file_path)
+            file, ext = os.path.splitext(file_path)
 
-    file_store.sort()
-    j = 0
-    media_files = 0
-    print("Storing files")
-    for file_path in file_store:
-        j += 1
-        m = mutagen.File(file_path, easy=True)
-        if m:
-            if not Track.store(file_path, m):
-                print("Problem saving %s" % (file_path,))
+            if ext in allowed_extensions:
+                file_store.put(file_path)
 
-            media_files += 1
-        print(
-            "%d%% complete, (%d files)" % (((j / len(file_store)) * 100),
-                                           j)
-        )
-    print("Stored %d tracks" % (media_files,))
+    logger.info("Storing tracks")            
+    gevent.joinall([gevent.spawn(store_track_task)] * 6)
+    logger.info("Done")
 
 
 def delete_file(path):

@@ -1,9 +1,13 @@
-import apsw
+import logging
+import sqlite3
 
 from common import utils
 from db.db_manager import DbManager
 from models.artist import Artist
 from models.album import Album
+
+
+logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
 
 class Track:
@@ -136,7 +140,7 @@ class Track:
                                 musicbrainz_artistid))
 
                 artist = Artist(
-                    id=db.last_insert_rowid(), name=artist_name,
+                    id=c.lastrowid, name=artist_name,
                     sortname=artistsort,
                     musicbrainz_artistid=musicbrainz_artistid
                 )
@@ -180,7 +184,7 @@ class Track:
                           musicbrainz_albumid) VALUES (?,?,?)""",
                           (album_name, album_date, mb_albumid))
 
-                album = Album(id=db.last_insert_rowid(), name=album_name,
+                album = Album(id=c.lastrowid, name=album_name,
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
@@ -197,7 +201,7 @@ class Track:
                 c.execute("""INSERT INTO album (name, `date`) VALUES
                 (?,?)""", (album_name, album_date))
 
-                album = Album(id=db.last_insert_rowid(), name=album_name,
+                album = Album(id=c.lastrowid, name=album_name,
                               date=album_date)
 
         if album:
@@ -219,7 +223,7 @@ class Track:
                         album_id) VALUES(?,?)""",
                         (artist.id, album.id)
                     )
-                except apsw.ConstraintError:
+                except sqlite3.IntegrityError:
                     pass
 
         track_number = None
@@ -248,7 +252,7 @@ class Track:
                 c.execute("""INSERT INTO album_track (album_id,
                           track_id) VALUES(?,?)""",
                           (album.id, self.id))
-            except apsw.ConstraintError:
+            except sqlite3.IntegrityError:
                 pass
 
         for artist in artists:
@@ -256,10 +260,10 @@ class Track:
                 c.execute("""INSERT INTO artist_track
                           (artist_id, track_id) VALUES(?,?)""",
                           (artist.id, self.id))
-            except apsw.ConstraintError:
+            except sqlite3.IntegrityError:
                 pass
 
-        c.execute("COMMIT TRANSACTION")
+        db.commit()
 
         return True
 
@@ -411,7 +415,7 @@ class Track:
                                 musicbrainz_artistid))
 
                 artist = Artist(
-                    id=db.last_insert_rowid(), name=artist_name,
+                    id=c.lastrowid, name=artist_name,
                     sortname=artistsort,
                     musicbrainz_artistid=musicbrainz_artistid
                 )
@@ -455,7 +459,7 @@ class Track:
                           musicbrainz_albumid) VALUES (?,?,?)""",
                           (album_name, album_date, mb_albumid))
 
-                album = Album(id=db.last_insert_rowid(), name=album_name,
+                album = Album(id=c.lastrowid, name=album_name,
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
@@ -473,7 +477,7 @@ class Track:
                     c.execute("""INSERT INTO album (name, `date`) VALUES
                     (?,?)""", (album_name, album_date))
 
-                    album = Album(id=db.last_insert_rowid(), name=album_name,
+                    album = Album(id=c.lastrowid, name=album_name,
                                   date=album_date)
 
         for artist in artists:
@@ -484,7 +488,7 @@ class Track:
                         album_id) VALUES(?,?)""",
                         (artist.id, album.id)
                     )
-                except apsw.ConstraintError:
+                except sqlite3.IntegrityError:
                     pass
 
         track_number = None
@@ -516,7 +520,7 @@ class Track:
                       (track_number, track_name, track_grouping,
                        filename))
 
-            track = Track(id=db.last_insert_rowid(), tracknumber=track_number,
+            track = Track(id=c.lastrowid, tracknumber=track_number,
                           name=track_name, grouping=track_grouping,
                           filename=filename)
 
@@ -525,7 +529,7 @@ class Track:
                 c.execute("""INSERT INTO album_track (album_id,
                           track_id) VALUES(?,?)""",
                           (album.id, track.id))
-            except apsw.ConstraintError:
+            except sqlite3.IntegrityError:
                 pass
 
         for artist in artists:
@@ -533,9 +537,9 @@ class Track:
                 c.execute("""INSERT INTO artist_track
                           (artist_id, track_id) VALUES(?,?)""",
                           (artist.id, track.id))
-            except apsw.ConstraintError:
+            except sqlite3.IntegrityError:
                 pass
 
-        c.execute("COMMIT TRANSACTION")
+        db.commit()
 
         return True
