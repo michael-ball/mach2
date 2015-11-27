@@ -1,7 +1,11 @@
 import configparser
 import json
 import mimetypes
+import os
 import sqlite3
+import subprocess
+import tempfile
+import threading
 
 from flask import Flask, Response, current_app, g, redirect, render_template
 from flask import request, url_for
@@ -144,17 +148,23 @@ def track(track_id):
                 if chunk:
                     yield chunk
                 else:
+                    os.remove(filename)
                     break
 
     local_track = Track(track_id)
 
+    fd, temp_filename = tempfile.mkstemp()
+
+    subprocess.call(["ffmpeg", "-y", "-i", local_track.filename, "-acodec",
+                     "libopus", "-b:a", "64000", "-f", "opus", temp_filename])
+
     mime_string = "application/octet-stream"
 
-    mime = mimetypes.guess_type(local_track.filename)
+    mime = mimetypes.guess_type(temp_filename)
     if mime[0]:
         mime_string = mime[0]
 
-    resp = Response(stream_file(local_track.filename), mimetype=mime_string)
+    resp = Response(stream_file(temp_filename), mimetype=mime_string)
 
     if mime[1]:
         resp.headers["Content-Encoding"] = mime[1]
