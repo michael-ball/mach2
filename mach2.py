@@ -17,6 +17,8 @@ from models.track import Track
 
 DATABASE = "app.db"
 
+compress = Compress()
+
 app = Flask(__name__)
 app.config.from_object(__name__)
 
@@ -164,4 +166,6 @@ if __name__ == "__main__":
     config.read("mach2.ini")
 
     login_manager.init_app(app)
+    compress.init_app(app)
+
     app.run()
