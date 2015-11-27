@@ -25,6 +25,10 @@ config.read("mach2.ini")
 
 app.config["DEBUG"] = config["DEFAULT"]["debug"]
 
+login_manager = LoginManager()
+login_manager.login_view = "login"
+login_manager.session_protection = "strong"
+
 
 def get_db():
     db = getattr(g, "_database", None)
@@ -159,4 +163,5 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("mach2.ini")
 
-    app.run(debug=config["DEFAULT"]["debug"])
+    login_manager.init_app(app)
+    app.run()
