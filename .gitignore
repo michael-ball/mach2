@@ -12,3 +12,4 @@ library.db-journal
 public
 tmp
 library.db
+cscope.*
