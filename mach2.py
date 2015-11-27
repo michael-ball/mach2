@@ -1,17 +1,53 @@
 import configparser
 import json
 import mimetypes
+import sqlite3
 
-from flask import Flask
-from flask import Response
+from flask import Flask, Response, current_app, g, redirect, render_template
+from flask import request, url_for
+from flask.ext.compress import Compress
+from flask.ext.login import LoginManager, current_user, login_required
+from flask.ext.login import login_user, logout_user
+
 
 from models.album import Album
 from models.artist import Artist
 from models.track import Track
 
 
+DATABASE = "app.db"
+
 app = Flask(__name__)
 app.config.from_object(__name__)
+
+config = configparser.ConfigParser()
+config.read("mach2.ini")
+
+app.config["DEBUG"] = config["DEFAULT"]["debug"]
+
+
+def get_db():
+    db = getattr(g, "_database", None)
+    if db is None:
+        db = sqlite3.connect(DATABASE)
+        db.row_factory = sqlite3.Row
+        setattr(g, "_database", db)
+
+    return db
+
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, "_database", None)
+    if db is not None:
+        db.close()
+
+
+def query_db(query, args=(), one=False):
+    cur = get_db().execute(query, args)
+    rv = cur.fetchall()
+    cur.close()
+    return (rv[0] if rv else None) if one else rv
 
 
 @app.route("/")
