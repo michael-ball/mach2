@@ -1,5 +1,12 @@
+import configparser
+
 from passlib.context import CryptContext
 
+
+config = configparser.ConfigParser()
+config.read("mach2.ini")
+
+secret_key = config["DEFAULT"]["secret_key"]
 
 pwd_context = CryptContext(
     schemes=["pbkdf2_sha256", "des_crypt"],

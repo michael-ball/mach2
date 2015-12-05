@@ -1,4 +1,8 @@
-from common.security import pwd_context
+import os
+
+from flask.ext.login import make_secure_token
+
+from common.security import pwd_context, secret_key
 
 
 class User:
@@ -46,7 +50,9 @@ class User:
             else:
                 hash = pwd_context.encrypt(password)
 
-            return hash
+            api_key = make_secure_token(hash, os.urandom(64), key=secret_key)
+
+            return hash, api_key
 
         else:
             raise ValueError("No user")
