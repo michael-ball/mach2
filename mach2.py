@@ -24,18 +24,21 @@ DATABASE = "app.db"
 compress = Compress()
 
 app = Flask(__name__)
-app.secret_key = """\xfc[\x16\x9d\x0f\x86;;\x9e_\x96\x01\xb7\xeay^\x8b\xa0E\x84
-    \x91;\x18\xc2"""
 app.config.from_object(__name__)
 
 config = configparser.ConfigParser()
 config.read("mach2.ini")
 
+app.config["DEBUG"] = config["DEFAULT"]["debug"]
+app.config["SECRET_KEY"] = config["DEFAULT"]["secret_key"]
+
 login_manager = LoginManager()
 login_manager.login_view = "login"
+config = configparser.ConfigParser()
+config.read("mach2.ini")
 
-login_manager.init_app(app)
-compress.init_app(app)
+login_manager = LoginManager()
+login_manager.login_view = "login"
 
 
 def get_db():
@@ -60,6 +63,42 @@ def query_db(query, args=(), one=False):
     rv = cur.fetchall()
     cur.close()
     return (rv[0] if rv else None) if one else rv
+
+
+@login_manager.request_loader
+def load_user(request):
+    # first, try to login using the api_key url arg
+    api_key = request.args.get('api_key', None)
+
+    if not api_key:
+        # next, try to login using Basic Auth
+        api_key = request.headers.get('Authorization', None)
+
+        if api_key:
+            api_key = api_key.replace('Basic ', '', 1)
+            try:
+                api_key = base64.b64decode(api_key)
+            except TypeError:
+                pass
+
+    if api_key:
+        user = None
+        result = query_db("SELECT * FROM user WHERE api_key = ?",
+                          [api_key], one=True)
+
+        if result:
+            user = User(id=result[0],
+                        username=result[1],
+                        password_hash=result[2],
+                        authenticated=0,
+                        active=result[4],
+                        anonymous=result[5])
+
+        if user:
+            return user
+
+    # finally, return None if both methods did not login the user
+    return None
 
 
 @app.route("/")
@@ -348,7 +387,6 @@ def login():
         user = None
         result = query_db("SELECT * FROM user WHERE username = ?",
                           [request.form["username"]], one=True)
-
         if result:
             user = User(id=result[0],
                         username=result[1],
