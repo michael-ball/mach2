@@ -31,43 +31,11 @@ app.config.from_object(__name__)
 config = configparser.ConfigParser()
 config.read("mach2.ini")
 
-app.config["DEBUG"] = config["DEFAULT"]["debug"]
-
 login_manager = LoginManager()
 login_manager.login_view = "login"
-login_manager.session_protection = "strong"
 
-
-def get_db():
-    db = getattr(g, "_database", None)
-    if db is None:
-        db = sqlite3.connect(DATABASE)
-        db.row_factory = sqlite3.Row
-        setattr(g, "_database", db)
-
-    return db
-
-
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, "_database", None)
-    if db is not None:
-        db.close()
-
-
-def query_db(query, args=(), one=False):
-    cur = get_db().execute(query, args)
-    rv = cur.fetchall()
-    cur.close()
-    return (rv[0] if rv else None) if one else rv
-
-
-config = configparser.ConfigParser()
-config.read("mach2.ini")
-
-login_manager = LoginManager()
-login_manager.login_view = "login"
-login_manager.session_protection = "strong"
+login_manager.init_app(app)
+compress.init_app(app)
 
 
 def get_db():
@@ -408,7 +376,4 @@ def logout():
 
 
 if __name__ == "__main__":
-    login_manager.init_app(app)
-    compress.init_app(app)
-
     app.run()
