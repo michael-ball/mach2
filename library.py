@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 import configparser
 import gevent
-from gevent import queue
+from gevent import monkey, queue
 import logging
 import mutagen
 import os
 
+from db.db_manager import DbManager
 from models.track import Track
 
 
@@ -24,6 +25,7 @@ def store_track_task():
 
 
 def run(path=None):
+    db = DbManager()
     if path is not None:
         if os.path.isdir(path):
             store_dir(path)
@@ -31,13 +33,15 @@ def run(path=None):
             store_file(path)
     else:
         store_dir("/media/Music")
+    db.export()
 
 
 def store_file(path):
+    logger = logging.getLogger("store_file")
     m = mutagen.File(path, easy=True)
     if m:
         if not Track.store(path, m):
-            print("Problem saving %s" % (path,))
+            logger.error("Problem saving %s" % (path,))
 
 
 def store_dir(path):
@@ -50,10 +54,10 @@ def store_dir(path):
             file_path = "".join([root, "/", name])
             file, ext = os.path.splitext(file_path)
 
-            if ext in allowed_extensions:
+            if ext.lower() in allowed_extensions:
                 file_store.put(file_path)
 
-    logger.info("Storing tracks")            
+    logger.info("Storing tracks")
     gevent.joinall([gevent.spawn(store_track_task)] * 6)
     logger.info("Done")
 
@@ -88,6 +92,7 @@ def update_track_filename(oldpath, newpath):
     track.save()
 
 if __name__ == "__main__":
+    monkey.patch_all()
     config = configparser.ConfigParser()
     config.read("mach2.ini")
 

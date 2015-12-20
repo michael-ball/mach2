@@ -1,7 +1,6 @@
 import configparser
 import os
 import sqlite3
-import tempfile
 
 
 class DbManager:
@@ -32,18 +31,16 @@ class DbManager:
                     yield("{0};".format(sql))
 
                 table_name_ident = table_name.replace("\"", "\"\"")
-                res = cu.execute(
-                    "PRAGMA table_info(\"{0}\")".format(table_name_ident))
+                res = cu.execute("PRAGMA table_info(\"{0}\")".format(
+                    table_name_ident))
                 column_names = [
                     str(table_info[1]) for table_info in res.fetchall()]
                 q = """
                     SELECT 'INSERT INTO "{0}" VALUES({1})' FROM "{0}";
-                    """.format(
-                        table_name_ident,
-                        ",".join(
-                            """'||quote("{0}")||'""".format(
-                                col.replace(
-                                    "\"", "\"\"")) for col in column_names))
+                    """.format(table_name_ident, ",".join(
+                    """'||quote("{0}")||'""".format(
+                        col.replace(
+                            "\"", "\"\"")) for col in column_names))
                 query_res = cu.execute(q)
                 for row in query_res:
                     yield("{0};".format(row[0]))
@@ -82,7 +79,7 @@ class DbManager:
 
             self.conn.row_factory = sqlite3.Row
 
-        def __del__(self):
+        def export(self):
             if not os.path.isfile(self.config["DEFAULT"]["database"]):
                 script = ""
 

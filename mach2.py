@@ -1,17 +1,17 @@
+import base64
 import configparser
 import json
 import mimetypes
 import os
 import sqlite3
-import subprocess
 import tempfile
-import threading
 
-from flask import Flask, Response, current_app, g, redirect, render_template
+from flask import Flask, Response, g, redirect, render_template
 from flask import request, url_for
 from flask.ext.compress import Compress
 from flask.ext.login import LoginManager, current_user, login_required
 from flask.ext.login import login_user, logout_user
+from gevent import subprocess
 
 from models.album import Album
 from models.artist import Artist
@@ -66,7 +66,7 @@ def query_db(query, args=(), one=False):
 
 
 @login_manager.request_loader
-def load_user(request):
+def load_user_from_request(request):
     # first, try to login using the api_key url arg
     api_key = request.args.get('api_key', None)
 
