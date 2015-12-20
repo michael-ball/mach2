@@ -21,8 +21,6 @@ from models.user import User
 
 DATABASE = "app.db"
 
-compress = Compress()
-
 app = Flask(__name__)
 app.config.from_object(__name__)
 
@@ -34,11 +32,10 @@ app.config["SECRET_KEY"] = config["DEFAULT"]["secret_key"]
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
-config = configparser.ConfigParser()
-config.read("mach2.ini")
+login_manager.init_app(app)
 
-login_manager = LoginManager()
-login_manager.login_view = "login"
+compress = Compress()
+compress.init_app(app)
 
 
 def get_db():
