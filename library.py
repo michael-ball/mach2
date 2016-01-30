@@ -92,7 +92,7 @@ def update_track_filename(oldpath, newpath):
     track.save()
 
 if __name__ == "__main__":
-    monkey.patch_all()
+    monkey.patch_all(thread=False)
     config = configparser.ConfigParser()
     config.read("mach2.ini")
 
