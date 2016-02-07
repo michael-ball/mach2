@@ -53,7 +53,7 @@ def update_clause_from_dict(data):
 
     try:
         for key in data.keys():
-            update_items.append("%s = :%s", (key, key))
+            update_items.append("%s = :%s" % (key, key))
 
         if len(update_items) > 1:
             update_clause = ", ".join(update_items)

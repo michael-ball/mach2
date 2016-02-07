@@ -1,15 +1,17 @@
 from common import utils
 from db.db_manager import DbManager
+from models.base import BaseModel
 
 
-class Album():
-    def __init__(self, id=None, **kwargs):
+class Album(BaseModel):
+
+    def __init__(self, id=None, db=None, **kwargs):
+        if db:
+            self.db = db
+
         if id is not None:
-            db = DbManager()
-            cursor = db.cursor()
-
-            for row in cursor.execute("SELECT * FROM album WHERE id = ?",
-                                      (id,)):
+            for row in self.db.execute("SELECT * FROM album WHERE id = ?",
+                                       (id,)):
                 setattr(self, "id", id)
                 setattr(self, "name", row[1])
                 setattr(self, "date", row[2])
@@ -18,26 +20,32 @@ class Album():
                 setattr(self, key, value)
 
     def delete(self):
-        db = DbManager()
-        cursor = db.cursor()
-
         for track in self.tracks:
             track.delete()
 
-        cursor.execute("BEGIN TRANSACTION")
+        with self.db.conn:
+            delete_album = "DELETE FROM album WHERE id = ?"
+            self.db.execute(delete_album, (self.id,))
 
-        delete_sql = "DELETE FROM album WHERE id = ?"
-        cursor.execute(delete_sql, (self.id,))
+            delete_track_rel = "DELETE FROM album_track WHERE album_id = ?"
+            self.db.execute(delete_track_rel, (self.id,))
 
-        delete_track_rel_sql = "DELETE FROM album_track WHERE album_id = ?"
-        cursor.execute(delete_track_rel_sql, (self.id,))
-
-        delete_artist_rel_sql = "DELETE FROM album_artist WHERE album_id = ?"
-        cursor.execute(delete_artist_rel_sql, (self.id,))
-
-        cursor.execute("COMMIT TRANSACTION")
+            delete_artist_rel = "DELETE FROM album_artist WHERE album_id = ?"
+            self.db.execute(delete_artist_rel, (self.id,))
 
         return True
+
+    @property
+    def db(self):
+        try:
+            return self._db
+        except AttributeError:
+            self._db = DbManager()
+            return self._db
+
+    @db.setter
+    def db(self, db):
+        self._db = db
 
     @property
     def artists(self):
@@ -46,15 +54,13 @@ class Album():
         if not hasattr(self, "_artists"):
             setattr(self, "_artists", [])
 
-            db = DbManager()
-            cursor = db.cursor()
-
-            for row in cursor.execute("""SELECT artist.* FROM artist INNER JOIN
-                                      album_artist ON artist.id =
-                                      album_artist.artist_id WHERE album_id = ?
-                                      ORDER BY name ASC""", (self.id,)):
-                artist = Artist(id=row[0], name=row[1], sortname=row[2],
-                                musicbrainz_artistid=row[3])
+            for row in self.db.execute("SELECT artist.* FROM artist INNER "
+                                       "JOIN album_artist ON artist.id = "
+                                       "album_artist.artist_id WHERE "
+                                       "album_id = ? ORDER BY name ASC",
+                                       (self.id,)):
+                artist = Artist(id=row[0], db=self.db, name=row[1],
+                                sortname=row[2], musicbrainz_artistid=row[3])
                 self._artists.append(artist)
 
         return self._artists
@@ -66,16 +72,16 @@ class Album():
         if not hasattr(self, "_tracks"):
             setattr(self, "_tracks", [])
 
-            db = DbManager()
-            cursor = db.cursor()
+            for row in self.db.execute("SELECT track.* FROM track INNER "
+                                       "JOIN album_track ON track.id = "
+                                       "album_track.track_id WHERE "
+                                       "album_id = ? ORDER BY tracknumber "
+                                       "ASC", (self.id,)):
 
-            for row in cursor.execute("""SELECT track.* FROM track
-                                      INNER JOIN album_track ON track.id =
-                                      album_track.track_id WHERE album_id = ?
-                                      ORDER BY tracknumber ASC""", (self.id,)):
-
-                track = Track(id=row[0], tracknumber=row[1], name=row[2],
-                              grouping=row[3], filename=row[4])
+                track = Track(id=row["id"], db=self.db,
+                              tracknumber=row["tracknumber"],
+                              name=row["name"], grouping=row["grouping"],
+                              filename=row["filename"])
                 self._tracks.append(track)
 
         return self._tracks
@@ -89,18 +95,16 @@ class Album():
                 dirty_attributes[attr] = value
 
         if len(dirty_attributes) > 0:
-            db = DbManager()
-            cursor = db.cursor()
-
             set_clause = utils.update_clause_from_dict(dirty_attributes)
 
             dirty_attributes[id] = self.id
 
             sql = " ".join(("UPDATE album"), set_clause, "WHERE id = :id")
-            cursor.execute(sql, dirty_attributes)
 
-    def search(order="album.id", direction="ASC", limit=None,
-               offset=None, **search_params):
+            with self.db.conn:
+                self.db.execute(sql, dirty_attributes)
+
+    def search(db=None, **search_params):
         """Find an album with the given params
 
         Args:
@@ -110,8 +114,8 @@ class Album():
         """
         albums = []
 
-        db = DbManager()
-        cursor = db.cursor()
+        if not db:
+            db = DbManager()
 
         # unpack search params
         where_params = {}
@@ -132,20 +136,21 @@ class Album():
         result = None
         if where_clause:
             statement = " ".join(("SELECT * FROM album", where_clause))
-            result = cursor.execute(statement, value_params)
+            result = db.execute(statement, value_params)
         else:
-            result = cursor.execute("SELECT * FROM album")
+            result = db.execute("SELECT * FROM album")
 
         for row in result:
             albums.append(
-                Album(id=row[0], name=row[1], date=row[2])
+                Album(id=row["id"], db=db, name=row["name"], date=row["date"])
             )
 
         return albums
 
-    def all(order="album.id", direction="ASC", limit=None, offset=None):
-        db = DbManager()
-        cursor = db.cursor()
+    def all(db=None, order="album.id", direction="ASC", limit=None,
+            offset=None):
+        if not db:
+            db = DbManager()
 
         albums = []
 
@@ -156,13 +161,13 @@ class Album():
 
         if limit is not None and offset is not None:
             select_string = " ".join((select_string,
-                                     "LIMIT %s OFFSET %s" % (limit, offset)))
+                                      "LIMIT %s OFFSET %s" % (limit, offset)))
 
-        result = cursor.execute(select_string)
+        result = db.execute(select_string)
 
         for row in result:
             albums.append(
-                Album(id=row[0], name=row[1], date=row[2])
+                Album(id=row["id"], db=db, name=row["name"], date=row["date"])
             )
 
         return albums

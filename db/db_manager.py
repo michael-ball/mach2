@@ -4,6 +4,40 @@ import sqlite3
 
 
 class DbManager:
+
+    create_album_table = "CREATE TABLE IF NOT EXISTS album (id INTEGER "\
+        "PRIMARY KEY, name TEXT, date TEXT, musicbrainz_albumid TEXT)"
+    create_album_artist_table = "CREATE TABLE IF NOT EXISTS album_artist ("\
+        "album_id INTEGER, artist_id INTEGER, CONSTRAINT ALBUM_ARTIST_PK "\
+        "PRIMARY KEY (album_id, artist_id), CONSTRAINT ALBUM_ARTIST_FK_ALBUM "\
+        "FOREIGN KEY (album_id) REFERENCES album(id), CONSTRAINT "\
+        "ALBUM_ARTIST_FK_ARTIST FOREIGN KEY(artist_id) REFERENCES artist(id))"
+    create_album_track_table = "CREATE TABLE IF NOT EXISTS album_track ("\
+        "album_id INTEGER, track_id INTEGER, CONSTRAINT ALBUM_TRACK_PK "\
+        "PRIMARY KEY (album_id, track_id), FOREIGN KEY(album_id) REFERENCES "\
+        "album(id), FOREIGN KEY(track_id) REFERENCES track(id))"
+    create_artist_table = "CREATE TABLE IF NOT EXISTS artist (id INTEGER "\
+        "PRIMARY KEY, name TEXT(2000000000), sortname TEXT(2000000000), "\
+        "musicbrainz_artistid TEXT(2000000000))"
+    create_artist_track_table = "CREATE TABLE IF NOT EXISTS artist_track ("\
+        "artist_id INTEGER, track_id INTEGER, CONSTRAINT ARTIST_TRACK_PK "\
+        "PRIMARY KEY (artist_id, track_id), FOREIGN KEY(artist_id) "\
+        "REFERENCES artist(id), FOREIGN KEY(track_id) REFERENCES track(id))"
+    create_track_table = "CREATE TABLE IF NOT EXISTS track (id INTEGER, "\
+        "tracknumber INTEGER, name TEXT(2000000000), grouping "\
+        "TEXT(2000000000), filename TEXT(2000000000), CONSTRAINT TRACK_PK "\
+        "PRIMARY KEY (id))"
+    create_musicbrainz_artist_index = "CREATE UNIQUE INDEX IF NOT EXISTS "\
+        "artist_musicbrainz_artistid ON artist(musicbrainz_artistid ASC)"
+    create_track_filename_index = "CREATE INDEX IF NOT EXISTS "\
+        "track_filename_IDX ON track(filename)"
+    create_track_grouping_index = "CREATE INDEX IF NOT EXISTS "\
+        "track_grouping_IDX ON track(grouping)"
+    create_track_name_index = "CREATE INDEX IF NOT EXISTS track_name_IDX ON "\
+        "track(name)"
+    create_track_number_index = "CREATE INDEX IF NOT EXISTS "\
+        "track_tracknumber_IDX ON track(tracknumber)"
+
     class __DbManager:
         config = configparser.ConfigParser()
         config.read("mach2.ini")
@@ -57,25 +91,30 @@ class DbManager:
 
             yield("COMMIT;")
 
-        def __init__(self):
+        def __init__(self, db=None):
             new_db = False
             cache_size_kb = 9766
 
-            if not os.path.isfile(self.config["DEFAULT"]["database"]):
-                new_db = True
+            if db:
+                self.conn = sqlite3.connect(db)
 
-            if new_db:
-                self.conn = sqlite3.connect(":memory:")
-                self.create_tables()
             else:
-                self.conn = sqlite3.connect(self.config["DEFAULT"]["database"])
-                library_info = os.stat(self.config["DEFAULT"]["database"])
-                cache_size_kb = round((library_info.st_size * 1.2) / 1024)
+                if not os.path.isfile(self.config["DEFAULT"]["database"]):
+                    new_db = True
 
-                cursor = self.conn.cursor()
-                # Setting pragma with ? placeholder produces an error
-                cursor.execute("pragma cache_size=-%s" % cache_size_kb)
-                cursor.close()
+                if new_db:
+                    self.conn = sqlite3.connect(":memory:")
+                    self.create_tables()
+                else:
+                    self.conn = sqlite3.connect(
+                        self.config["DEFAULT"]["database"])
+                    library_info = os.stat(self.config["DEFAULT"]["database"])
+                    cache_size_kb = round((library_info.st_size * 1.2) / 1024)
+
+                    cursor = self.conn.cursor()
+                    # Setting pragma with ? placeholder produces an error
+                    cursor.execute("pragma cache_size=-%s" % cache_size_kb)
+                    cursor.close()
 
             self.conn.row_factory = sqlite3.Row
 
@@ -96,6 +135,12 @@ class DbManager:
         def __str__(self):
             return repr(self)
 
+        def execute(self, script, parameters=None):
+            if parameters:
+                return self.conn.execute(script, parameters)
+
+            return self.conn.execute(script)
+
         def commit(self):
             return self.conn.commit()
 
@@ -109,65 +154,25 @@ class DbManager:
             return self.conn.interrupt()
 
         def create_tables(self):
-            cursor = self.conn.cursor()
-            cursor.execute("""CREATE TABLE IF NOT EXISTS album (id
-                           INTEGER PRIMARY KEY, name TEXT, date TEXT,
-                           musicbrainz_albumid TEXT)""")
-            cursor.execute("""CREATE TABLE IF NOT EXISTS album_artist (
-                    album_id INTEGER,
-                    artist_id INTEGER,
-                    CONSTRAINT ALBUM_ARTIST_PK PRIMARY KEY (album_id,
-                    artist_id),
-                    CONSTRAINT ALBUM_ARTIST_FK_ALBUM FOREIGN KEY (album_id)
-                        REFERENCES album(id),
-                    CONSTRAINT ALBUM_ARTIST_FK_ARTIST FOREIGN KEY
-                        (artist_id) REFERENCES artist(id)
-                )""")
-            cursor.execute("""CREATE TABLE IF NOT EXISTS album_track (
-                    album_id INTEGER,
-                    track_id INTEGER,
-                    CONSTRAINT ALBUM_TRACK_PK PRIMARY KEY (album_id,
-                        track_id),
-                    FOREIGN KEY(album_id) REFERENCES album(id),
-                    FOREIGN KEY(track_id) REFERENCES track(id)
-                )""")
-            cursor.execute("""CREATE TABLE IF NOT EXISTS artist (id
-                    INTEGER PRIMARY KEY, name
-                    TEXT(2000000000), sortname TEXT(2000000000),
-                    musicbrainz_artistid TEXT(2000000000))""")
-            cursor.execute("""CREATE TABLE IF NOT EXISTS artist_track (
-                    artist_id INTEGER,
-                    track_id INTEGER,
-                    CONSTRAINT ARTIST_TRACK_PK PRIMARY KEY (artist_id,
-                        track_id),
-                    FOREIGN KEY(artist_id) REFERENCES artist(id),
-                    FOREIGN KEY(track_id) REFERENCES track(id)
-                )""")
-            cursor.execute("""CREATE TABLE IF NOT EXISTS track (
-                    id INTEGER,
-                    tracknumber INTEGER,
-                    name TEXT(2000000000),
-                    grouping TEXT(2000000000),
-                    filename TEXT(2000000000),
-                    CONSTRAINT TRACK_PK PRIMARY KEY (id)
-                )""")
-            cursor.execute("""CREATE UNIQUE INDEX IF NOT EXISTS
-                           artist_musicbrainz_artistid ON
-                           artist(musicbrainz_artistid ASC)""")
-            cursor.execute("""CREATE INDEX IF NOT EXISTS track_filename_IDX
-                           ON track(filename)""")
-            cursor.execute("""CREATE INDEX IF NOT EXISTS track_grouping_IDX
-                           ON track(grouping)""")
-            cursor.execute("""CREATE INDEX IF NOT EXISTS track_name_IDX ON
-                           track(name)""")
-            cursor.execute("""CREATE INDEX IF NOT EXISTS
-                           track_tracknumber_IDX ON track(tracknumber)""")
-            cursor.close()
+            with self.conn:
+                self.conn.execute(DbManager.create_album_table)
+                self.conn.execute(DbManager.create_album_artist_table)
+                self.conn.execute(DbManager.create_album_track_table)
+                self.conn.execute(DbManager.create_artist_table)
+                self.conn.execute(DbManager.create_artist_track_table)
+                self.conn.execute(DbManager.create_track_table)
+                self.conn.execute(DbManager.create_musicbrainz_artist_index)
+                self.conn.execute(DbManager.create_track_filename_index)
+                self.conn.execute(DbManager.create_track_grouping_index)
+                self.conn.execute(DbManager.create_track_name_index)
+                self.conn.execute(DbManager.create_track_number_index)
 
     instance = None
 
-    def __new__(self):
-        if not DbManager.instance:
+    def __new__(self, db=None):
+        if db:
+            return DbManager.__DbManager(db)
+        elif not DbManager.instance:
             DbManager.instance = DbManager.__DbManager()
 
         return DbManager.instance

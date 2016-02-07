@@ -18,3 +18,4 @@ library.db
 cscope.*
 static/scripts/libs/
 .jshintrc
+.cache

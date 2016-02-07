@@ -6,8 +6,8 @@ import os
 import sqlite3
 import tempfile
 
-from flask import Flask, Response, g, redirect, render_template
-from flask import request, url_for
+from flask import Blueprint, Flask, Response, current_app, g, redirect, \
+    render_template, request, url_for
 from flask.ext.compress import Compress
 from flask.ext.login import LoginManager, current_user, login_required
 from flask.ext.login import login_user, logout_user
@@ -18,37 +18,32 @@ from models.artist import Artist
 from models.track import Track
 from models.user import User
 
+import builtins
 
-DATABASE = "app.db"
 
-app = Flask(__name__)
-app.config.from_object(__name__)
+builtins.library_db = None
+
 
 config = configparser.ConfigParser()
 config.read("mach2.ini")
 
-app.config["DEBUG"] = config["DEFAULT"]["debug"]
-app.config["SECRET_KEY"] = config["DEFAULT"]["secret_key"]
+mach2 = Blueprint("mach2", __name__)
 
 login_manager = LoginManager()
-login_manager.login_view = "login"
-login_manager.init_app(app)
-
-compress = Compress()
-compress.init_app(app)
+login_manager.login_view = "mach2.login"
 
 
 def get_db():
     db = getattr(g, "_database", None)
     if db is None:
-        db = sqlite3.connect(DATABASE)
+        db = sqlite3.connect(current_app.config["DATABASE"])
         db.row_factory = sqlite3.Row
         setattr(g, "_database", db)
 
     return db
 
 
-@app.teardown_appcontext
+@mach2.teardown_app_request
 def close_connection(exception):
     db = getattr(g, "_database", None)
     if db is not None:
@@ -98,13 +93,13 @@ def load_user_from_request(request):
     return None
 
 
-@app.route("/")
+@mach2.route("/")
 @login_required
 def index():
     return render_template("index.html", user=current_user)
 
 
-@app.route("/albums")
+@mach2.route("/albums")
 @login_required
 def albums():
     returned_albums = []
@@ -143,60 +138,61 @@ def albums():
     all_params.update(search_params)
 
     if search_params:
-        returned_albums = Album.search(**all_params)
+        returned_albums = Album.search(db=builtins.library_db, **all_params)
     else:
-        returned_albums = Album.all(**params)
+        returned_albums = Album.all(db=builtins.library_db, **params)
 
     for album in returned_albums:
-        albums.append(album.__dict__)
+        albums.append(album.as_dict())
 
     return json.dumps(albums)
 
 
-@app.route("/albums/<int:album_id>/tracks")
+@mach2.route("/albums/<int:album_id>/tracks")
 @login_required
 def album_tracks(album_id):
     tracks = []
-    album = Album(id=album_id)
+    album = Album(db=builtins.library_db, id=album_id)
 
     for track in album.tracks:
-        tracks.append(track.__dict__)
+        tracks.append(track.as_dict())
 
     return json.dumps(tracks)
 
 
-@app.route("/albums/<int:album_id>/artists")
+@mach2.route("/albums/<int:album_id>/artists")
 @login_required
 def album_artists(album_id):
     artists = []
-    album = Album(id=album_id)
+    album = Album(db=builtins.library_db, id=album_id)
 
     for artist in album.artists:
-        artists.append(artist.__dict__)
+        artists.append(artist.as_dict())
 
     return json.dumps(artists)
 
 
-@app.route("/albums/<int:album_id>")
+@mach2.route("/albums/<int:album_id>")
 @login_required
 def album(album_id):
-    album = Album(id=album_id)
+    album = Album(db=builtins.library_db, id=album_id)
 
-    return json.dumps(album.__dict__)
+    return json.dumps(album.as_dict())
 
 
-@app.route("/albums/<album_name>")
+@mach2.route("/albums/<album_name>")
 @login_required
 def album_search(album_name):
     albums = []
 
-    for album in Album.search(name={"data": album_name, "operator": "LIKE"}):
-        albums.append(album.__dict__)
+    for album in Album.search(db=builtins.library_db,
+                              name={"data": album_name, "operator": "LIKE"}):
+        albums.append(album.as_dict())
 
     return json.dumps(albums)
 
 
-@app.route("/artists")
+@mach2.route("/artists")
 @login_required
 def artists():
     order_by = None
@@ -219,64 +215,66 @@ def artists():
         off = request.args.get("offset")
 
     if order_by:
-        returned_artists = Artist.all(order=order_by,
+        returned_artists = Artist.all(db=builtins.library_db, order=order_by,
                                       direction=order_direction,
                                       limit=lim, offset=off)
     else:
-        returned_artists = Artist.all(limit=lim, offset=off)
+        returned_artists = Artist.all(db=builtins.library_db, limit=lim,
+                                      offset=off)
 
     for artist in returned_artists:
-        artists.append(artist.__dict__)
+        artists.append(artist.as_dict())
 
     return json.dumps(artists)
 
 
-@app.route("/artists/<int:artist_id>/tracks")
+@mach2.route("/artists/<int:artist_id>/tracks")
 @login_required
 def artist_tracks(artist_id):
     tracks = []
-    artist = Artist(id=artist_id)
+    artist = Artist(db=builtins.library_db, id=artist_id)
 
     for track in artist.tracks:
-        tracks.append(track.__dict__)
+        tracks.append(track.as_dict())
 
     return json.dumps(tracks)
 
 
-@app.route("/artists/<int:artist_id>/albums")
+@mach2.route("/artists/<int:artist_id>/albums")
 @login_required
 def artist_albums(artist_id):
     albums = []
-    artist = Artist(id=artist_id)
+    artist = Artist(db=builtins.library_db, id=artist_id)
 
     for album in artist.albums:
-        albums.append(album.__dict__)
+        albums.append(album.as_dict())
 
     return json.dumps(albums)
 
 
-@app.route("/artists/<int:artist_id>")
+@mach2.route("/artists/<int:artist_id>")
 @login_required
 def artist_info(artist_id):
-    artist = Artist(id=artist_id)
+    artist = Artist(id=artist_id, db=builtins.library_db)
 
-    return json.dumps(artist.__dict__)
+    return json.dumps(artist.as_dict())
 
 
-@app.route("/artists/<artist_name>")
+@mach2.route("/artists/<artist_name>")
 @login_required
 def artist_search(artist_name):
     artists = []
-    for artist in Artist.search(name={
-                                "data": artist_name,
-                                "operator": "LIKE"
+    for artist in Artist.search(db=builtins.libary_db,
+                                name={
+                                    "data": artist_name,
+                                    "operator": "LIKE"
                                 }):
-        artists.append(artist.__dict__)
+        artists.append(artist.as_dict())
 
     return json.dumps(artists)
 
 
-@app.route("/tracks")
+@mach2.route("/tracks")
 @login_required
 def tracks():
     order_by = None
@@ -299,30 +297,32 @@ def tracks():
         off = request.args.get("offset")
 
     if order_by:
-        returned_tracks = Track.all(order=order_by, direction=order_direction,
-                                    limit=lim, offset=off)
+        returned_tracks = Track.all(db=builtins.library_db, order=order_by,
+                                    direction=order_direction, limit=lim,
+                                    offset=off)
     else:
-        returned_tracks = Track.all(limit=lim, offset=off)
+        returned_tracks = Track.all(db=builtins.library_db,
+                                    limit=lim, offset=off)
 
     for track in returned_tracks:
-        tracks.append(track.__dict__)
+        tracks.append(track.as_dict())
 
     return json.dumps(tracks)
 
 
-@app.route("/tracks/<int:track_id>/artists")
+@mach2.route("/tracks/<int:track_id>/artists")
 @login_required
 def track_artists(track_id):
     artists = []
-    track = Track(id=track_id)
+    track = Track(db=builtins.library_db, id=track_id)
 
     for artist in track.artists:
-        artists.append(artist.__dict__)
+        artists.append(artist.as_dict())
 
     return json.dumps(artists)
 
 
-@app.route("/tracks/<int:track_id>")
+@mach2.route("/tracks/<int:track_id>")
 @login_required
 def track(track_id):
     def stream_file(filename, chunksize=8192):
@@ -335,7 +335,7 @@ def track(track_id):
                     os.remove(filename)
                     break
 
-    local_track = Track(track_id)
+    local_track = Track(db=builtins.library_db, id=track_id)
 
     fd, temp_filename = tempfile.mkstemp()
 
@@ -356,12 +356,13 @@ def track(track_id):
     return resp
 
 
-@app.route("/tracks/<track_name>")
+@mach2.route("/tracks/<track_name>")
 @login_required
 def track_search(track_name):
     tracks = []
-    for track in Track.search(name={"data": track_name, "operator": "LIKE"}):
-        tracks.append(track.__dict__)
+    for track in Track.search(db=builtins.library_db,
+                              name={"data": track_name, "operator": "LIKE"}):
+        tracks.append(track.as_dict())
 
     return json.dumps(tracks)
 
@@ -378,7 +379,7 @@ def load_user(userid):
     return user
 
 
-@app.route("/login", methods=["GET", "POST"])
+@mach2.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         user = None
@@ -396,19 +397,48 @@ def login():
 
         if user and user.verify(password):
             login_user(user)
-            return redirect(request.args.get("next") or url_for("index"))
+            return redirect(request.args.get("next") or url_for("mach2.index"))
         else:
             user = None
 
     return render_template("login.html")
 
 
-@app.route("/logout")
+@mach2.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect("/")
 
 
+@mach2.before_app_first_request
+def setup_globals():
+    setattr(g, "_db_path", current_app.config["DATABASE"])
+
+
+def create_app(database=None, library=None):
+    app = Flask(__name__)
+    if database:
+        app.config["DATABASE"] = database
+    else:
+        app.config["DATABASE"] = config["DEFAULT"]["app_db"]
+
+    if library:
+        builtins.library_db = library
+
+    app.config["DEBUG"] = config["DEFAULT"]["debug"]
+    app.config["SECRET_KEY"] = config["DEFAULT"]["secret_key"]
+
+    app.register_blueprint(mach2)
+
+    login_manager.init_app(app)
+
+    compress = Compress()
+    compress.init_app(app)
+
+    return app
+
+
 if __name__ == "__main__":
+    app = create_app()
     app.run()
