@@ -2,6 +2,7 @@ import json
 import unittest
 
 import pytest
+import six
 
 from mach2 import create_app
 
@@ -25,17 +26,17 @@ class Mach2TestCase(unittest.TestCase):
 
     def test_login(self):
         rv = self.login("admin", "testpass")
-        assert bytes("Log out", "utf-8") in rv.data
+        assert six.b("Log out") in rv.data
         self.logout()
         rv = self.login("wrong", "definitelywrong")
-        assert bytes("Log out", "utf-8") not in rv.data
+        assert six.b("Log out") not in rv.data
         self.logout()
 
     def test_album(self):
         self.login("admin", "testpass")
 
         rv = self.app.get("/albums/1")
-        assert bytes("Album 1", "utf-8") in rv.data
+        assert six.b("Album 1") in rv.data
 
         self.logout()
 
@@ -43,8 +44,8 @@ class Mach2TestCase(unittest.TestCase):
         self.login("admin", "testpass")
         rv = self.app.get("/artists")
 
-        assert bytes("Artist 1", "utf-8") in rv.data
-        assert bytes("Artist 2", "utf-8") in rv.data
+        assert six.b("Artist 1") in rv.data
+        assert six.b("Artist 2") in rv.data
 
         artists = json.loads(rv.data.decode("utf-8"))
         assert artists

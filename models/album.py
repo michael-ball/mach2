@@ -1,17 +1,16 @@
 from common import utils
-from db.db_manager import DbManager
 from models.base import BaseModel
 
 
 class Album(BaseModel):
+    """Represents an album."""
 
-    def __init__(self, id=None, db=None, **kwargs):
-        if db:
-            self.db = db
+    def __init__(self, db, id=None, **kwargs):
+        self._db = db
 
         if id is not None:
-            for row in self.db.execute("SELECT * FROM album WHERE id = ?",
-                                       (id,)):
+            for row in self._db.execute("SELECT * FROM album WHERE id = ?",
+                                        (id,)):
                 setattr(self, "id", id)
                 setattr(self, "name", row[1])
                 setattr(self, "date", row[2])
@@ -23,25 +22,21 @@ class Album(BaseModel):
         for track in self.tracks:
             track.delete()
 
-        with self.db.conn:
+        with self._db.conn:
             delete_album = "DELETE FROM album WHERE id = ?"
-            self.db.execute(delete_album, (self.id,))
+            self._db.execute(delete_album, (self.id,))
 
             delete_track_rel = "DELETE FROM album_track WHERE album_id = ?"
-            self.db.execute(delete_track_rel, (self.id,))
+            self._db.execute(delete_track_rel, (self.id,))
 
             delete_artist_rel = "DELETE FROM album_artist WHERE album_id = ?"
-            self.db.execute(delete_artist_rel, (self.id,))
+            self._db.execute(delete_artist_rel, (self.id,))
 
         return True
 
     @property
     def db(self):
-        try:
-            return self._db
-        except AttributeError:
-            self._db = DbManager()
-            return self._db
+        return self._db
 
     @db.setter
     def db(self, db):
@@ -54,12 +49,12 @@ class Album(BaseModel):
         if not hasattr(self, "_artists"):
             setattr(self, "_artists", [])
 
-            for row in self.db.execute("SELECT artist.* FROM artist INNER "
-                                       "JOIN album_artist ON artist.id = "
-                                       "album_artist.artist_id WHERE "
-                                       "album_id = ? ORDER BY name ASC",
-                                       (self.id,)):
-                artist = Artist(id=row[0], db=self.db, name=row[1],
+            for row in self._db.execute("SELECT artist.* FROM artist INNER "
+                                        "JOIN album_artist ON artist.id = "
+                                        "album_artist.artist_id WHERE "
+                                        "album_id = ? ORDER BY name ASC",
+                                        (self.id,)):
+                artist = Artist(id=row[0], db=self._db, name=row[1],
                                 sortname=row[2], musicbrainz_artistid=row[3])
                 self._artists.append(artist)
 
@@ -72,13 +67,13 @@ class Album(BaseModel):
         if not hasattr(self, "_tracks"):
             setattr(self, "_tracks", [])
 
-            for row in self.db.execute("SELECT track.* FROM track INNER "
-                                       "JOIN album_track ON track.id = "
-                                       "album_track.track_id WHERE "
-                                       "album_id = ? ORDER BY tracknumber "
-                                       "ASC", (self.id,)):
+            for row in self._db.execute("SELECT track.* FROM track INNER "
+                                        "JOIN album_track ON track.id = "
+                                        "album_track.track_id WHERE "
+                                        "album_id = ? ORDER BY tracknumber "
+                                        "ASC", (self.id,)):
 
-                track = Track(id=row["id"], db=self.db,
+                track = Track(id=row["id"], db=self._db,
                               tracknumber=row["tracknumber"],
                               name=row["name"], grouping=row["grouping"],
                               filename=row["filename"])
@@ -97,14 +92,15 @@ class Album(BaseModel):
         if len(dirty_attributes) > 0:
             set_clause = utils.update_clause_from_dict(dirty_attributes)
 
-            dirty_attributes[id] = self.id
+            dirty_attributes["id"] = self.id
 
-            sql = " ".join(("UPDATE album"), set_clause, "WHERE id = :id")
+            sql = " ".join(("UPDATE album", set_clause, "WHERE id = :id"))
 
-            with self.db.conn:
-                self.db.execute(sql, dirty_attributes)
+            with self._db.conn:
+                self._db.execute(sql, dirty_attributes)
 
-    def search(db=None, **search_params):
+    @classmethod
+    def search(cls, database, **search_params):
         """Find an album with the given params
 
         Args:
@@ -113,9 +109,6 @@ class Album(BaseModel):
             musicbrainz_albumid: dict, with 'data' and 'operator' keys
         """
         albums = []
-
-        if not db:
-            db = DbManager()
 
         # unpack search params
         where_params = {}
@@ -136,21 +129,21 @@ class Album(BaseModel):
         result = None
         if where_clause:
             statement = " ".join(("SELECT * FROM album", where_clause))
-            result = db.execute(statement, value_params)
+            result = database.execute(statement, value_params)
         else:
-            result = db.execute("SELECT * FROM album")
+            result = database.execute("SELECT * FROM album")
 
         for row in result:
             albums.append(
-                Album(id=row["id"], db=db, name=row["name"], date=row["date"])
+                Album(id=row["id"], db=database, name=row["name"],
+                      date=row["date"])
             )
 
         return albums
 
-    def all(db=None, order="album.id", direction="ASC", limit=None,
+    @classmethod
+    def all(cls, database, order="album.id", direction="ASC", limit=None,
             offset=None):
-        if not db:
-            db = DbManager()
 
         albums = []
 
@@ -163,11 +156,12 @@ class Album(BaseModel):
             select_string = " ".join((select_string,
                                       "LIMIT %s OFFSET %s" % (limit, offset)))
 
-        result = db.execute(select_string)
+        result = database.execute(select_string)
 
         for row in result:
             albums.append(
-                Album(id=row["id"], db=db, name=row["name"], date=row["date"])
+                Album(id=row["id"], db=database, name=row["name"],
+                      date=row["date"])
             )
 
         return albums

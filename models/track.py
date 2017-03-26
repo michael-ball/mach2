@@ -2,7 +2,6 @@ import logging
 import sqlite3
 
 from common import utils
-from db.db_manager import DbManager
 from models.artist import Artist
 from models.album import Album
 from models.base import BaseModel
@@ -13,15 +12,14 @@ logging.basicConfig(format="%(asctime)s %(message)s", level=logging.DEBUG)
 
 class Track(BaseModel):
 
-    def __init__(self, id=None, db=None, **kwargs):
-        if db:
-            self.db = db
+    def __init__(self, db, id=None, **kwargs):
+        self._db = db
 
         self.__data = {}
 
         if id is not None:
-            for row in self.db.execute("SELECT * FROM track WHERE id = ?",
-                                       (id,)):
+            for row in self._db.execute("SELECT * FROM track WHERE id = ?",
+                                        (id,)):
                 for key in ["id", "tracknumber", "name", "grouping",
                             "filename"]:
                     setattr(self, key, row[key])
@@ -32,11 +30,10 @@ class Track(BaseModel):
                 self.__data[key] = value
 
     def delete(self):
-
         delete_sql = "DELETE FROM track WHERE id = ?"
 
-        with self.db.conn:
-            self.db.execute(delete_sql, (self.id,))
+        with self._db.conn:
+            self._db.execute(delete_sql, (self.id,))
 
             # If there is an old album, remove it if it no longer has any
             # tracks
@@ -48,8 +45,8 @@ class Track(BaseModel):
             old_album = self.album
 
             if old_album:
-                self.db.execute("DELETE FROM album_track WHERE track_id = ?",
-                                (self.id,))
+                self._db.execute("DELETE FROM album_track WHERE track_id = ?",
+                                 (self.id,))
 
                 if not old_album.tracks:
                     old_album.delete()
@@ -63,8 +60,8 @@ class Track(BaseModel):
             old_artists = self.artists
 
             for old_artist in old_artists:
-                self.db.execute("DELETE FROM artist_track WHERE track_id = "
-                                "?", (self.id,))
+                self._db.execute("DELETE FROM artist_track WHERE track_id = "
+                                 "?", (self.id,))
 
                 if not old_artist.tracks:
                     old_artist.delete()
@@ -73,11 +70,8 @@ class Track(BaseModel):
 
     @property
     def db(self):
-        try:
-            return self._db
-        except AttributeError:
-            self._db = DbManager()
-            return self._db
+        return self._db
+
 
     @db.setter
     def db(self, db):
@@ -88,11 +82,11 @@ class Track(BaseModel):
         if not hasattr(self, "_album"):
             setattr(self, "_album", None)
 
-            for row in self.db.execute("SELECT album.* FROM album INNER "
-                                       "JOIN album_track ON album.id = "
-                                       "album_track.album_id WHERE "
-                                       "track_id = ? LIMIT 1", (self.id,)):
-                setattr(self, "_album", Album(id=row["id"], db=self.db,
+            for row in self._db.execute("SELECT album.* FROM album INNER "
+                                        "JOIN album_track ON album.id = "
+                                        "album_track.album_id WHERE "
+                                        "track_id = ? LIMIT 1", (self.id,)):
+                setattr(self, "_album", Album(id=row["id"], db=self._db,
                                               name=row["name"],
                                               date=row["date"]))
 
@@ -101,7 +95,7 @@ class Track(BaseModel):
     @property
     def artists(self):
         if not hasattr(self, "_artists"):
-            cursor = self.db.cursor()
+            cursor = self._db.cursor()
 
             setattr(self, "_artists", [])
             for row in cursor.execute("SELECT artist.* FROM artist INNER JOIN "
@@ -109,7 +103,7 @@ class Track(BaseModel):
                                       "artist_track.artist_id WHERE "
                                       "artist_track.track_id = ?",
                                       (self.id,)):
-                self._artists.append(Artist(id=row["id"], db=self.db,
+                self._artists.append(Artist(id=row["id"], db=self._db,
                                             name=row["name"],
                                             sortname=row["sortname"],
                                             musicbrainz_artistid=row[
@@ -118,7 +112,10 @@ class Track(BaseModel):
         return self._artists
 
     def update(self, metadata):
-        c = self.db.cursor()
+        c = self._db.cursor()
+
+        artist_changed = False
+        album_changed = False
 
         artist_names = metadata["artist"]
         musicbrainz_artist_ids = []
@@ -136,6 +133,7 @@ class Track(BaseModel):
         artists = []
 
         for artist_name in artist_names:
+            artist = None
             musicbrainz_artistid = None
             artistsort = None
 
@@ -161,7 +159,7 @@ class Track(BaseModel):
             row = rows.fetchone()
 
             if row:
-                artist = Artist(id=row["id"], db=self.db, name=row["name"],
+                artist = Artist(id=row["id"], db=self._db, name=row["name"],
                                 sortname=row["sortname"],
                                 musicbrainz_artistid=row[
                                     "musicbrainz_artistid"])
@@ -182,7 +180,7 @@ class Track(BaseModel):
                           (artist_name, artistsort, musicbrainz_artistid))
 
                 artist = Artist(
-                    id=c.lastrowid, db=self.db, name=artist_name,
+                    id=c.lastrowid, db=self._db, name=artist_name,
                     sortname=artistsort,
                     musicbrainz_artistid=musicbrainz_artistid
                 )
@@ -219,7 +217,7 @@ class Track(BaseModel):
             row = rows.fetchone()
 
             if row:
-                album = Album(id=row["id"], db=self.db, name=row["name"],
+                album = Album(id=row["id"], db=self._db, name=row["name"],
                               date=row["date"],
                               musicbrainz_albumid=row["musicbrainz_albumid"])
             else:
@@ -227,7 +225,7 @@ class Track(BaseModel):
                           "musicbrainz_albumid) VALUES (?, ?, ?)",
                           (album_name, album_date, mb_albumid))
 
-                album = Album(id=c.lastrowid, db=self.db, name=album_name,
+                album = Album(id=c.lastrowid, db=self._db, name=album_name,
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
@@ -239,14 +237,14 @@ class Track(BaseModel):
             row = rows.fetchone()
 
             if row:
-                album = Album(id=row["id"], db=self.db, name=row["name"],
+                album = Album(id=row["id"], db=self._db, name=row["name"],
                               date=row["date"],
                               musicbrainz_albumid=row["musicbrainz_albumid"])
             else:
                 c.execute("INSERT INTO album (name, `date`) VALUES (?, ?)",
                           (album_name, album_date))
 
-                album = Album(id=c.lastrowid, db=self.db, name=album_name,
+                album = Album(id=c.lastrowid, db=self._db, name=album_name,
                               date=album_date)
 
         if album:
@@ -290,12 +288,9 @@ class Track(BaseModel):
             pass
 
         old_album = self.album
-
         if old_album:
-            c.execute("DELETE FROM album_track WHERE track_id = ?", (self.id,))
-
-        if not old_album.tracks:
-            old_album.delete()
+            c.execute("DELETE FROM album_track WHERE track_id = ?",
+                      (self.id,))
 
         # If there are old artists, remove them if they no longer have
         # any tracks
@@ -309,15 +304,15 @@ class Track(BaseModel):
             c.execute("DELETE FROM artist_track WHERE track_id = ?",
                       (self.id,))
 
-            if not old_artist.tracks:
-                old_artist.delete()
-
         if album:
             try:
                 c.execute("INSERT INTO album_track (album_id, track_id) "
                           "VALUES(?, ?)", (album.id, self.id))
             except sqlite3.IntegrityError:
                 pass
+
+            if not old_album.tracks:
+                old_album.delete()
 
             setattr(self, "_album", album)
 
@@ -327,6 +322,9 @@ class Track(BaseModel):
                           "VALUES(?, ?)", (artist.id, self.id))
             except sqlite3.IntegrityError:
                 pass
+
+            if not old_artist.tracks:
+                old_artist.delete()
 
             if album:
                 try:
@@ -339,8 +337,8 @@ class Track(BaseModel):
         if artists:
             setattr(self, "_artists", artists)
 
-        self.db.commit()
         c.close()
+        self._db.commit()
 
         return True
 
@@ -364,10 +362,11 @@ class Track(BaseModel):
 
             sql = " ".join(("UPDATE track", set_clause, "WHERE id = :id"))
 
-            with self.db.conn:
-                self.db.execute(sql, dirty_attributes)
+            with self._db.conn:
+                self._db.execute(sql, dirty_attributes)
 
-    def search(db=None, **search_params):
+    @classmethod
+    def search(cls, database, **search_params):
         """Find a track with the given params
 
         Args:
@@ -376,10 +375,6 @@ class Track(BaseModel):
             grouping: dict, with 'data' and 'operator' keys
             filename: dict, with 'data' and 'operator' keys
         """
-
-        if not db:
-            db = DbManager()
-
         tracks = []
 
         # unpack search params
@@ -394,40 +389,37 @@ class Track(BaseModel):
         result = None
         if where_clause:
             statement = " ".join(("SELECT * FROM track", where_clause))
-            result = db.execute(statement, value_params)
+            result = database.execute(statement, value_params)
         else:
-            result = db.execute("SELECT * FROM track")
+            result = database.execute("SELECT * FROM track")
 
         for row in result:
             tracks.append(
-                Track(id=row["id"], db=db, tracknumber=row["tracknumber"],
+                Track(id=row["id"], db=database, tracknumber=row["tracknumber"],
                       name=row["name"], grouping=row["grouping"],
                       filename=row["filename"])
             )
 
         return tracks
 
-    def find_by_path(path, db=None):
-        if not db:
-            db = DbManager()
+    @classmethod
+    def find_by_path(cls, path, database):
         track = None
 
-        for row in db.execute("SELECT * FROM track WHERE filename = ? "
-                              "LIMIT 1", (path,)):
-            track = Track(id=row["id"], db=db, tracknumber=row["tracknumber"],
-                          name=row["name"], grouping=row["grouping"],
-                          filename=row["filename"])
+        for row in database.execute("SELECT * FROM track WHERE filename = ? "
+                                    "LIMIT 1", (path,)):
+            track = Track(id=row["id"], db=database,
+                          tracknumber=row["tracknumber"], name=row["name"],
+                          grouping=row["grouping"], filename=row["filename"])
 
         return track
 
-    def store(filename, metadata, db=None):
-        if Track.find_by_path(filename, db=db):
+    @classmethod
+    def store(cls, filename, metadata, database):
+        if Track.find_by_path(filename, database):
             return True
 
-        if not db:
-            db = DbManager()
-
-        c = db.cursor()
+        c = database.cursor()
 
         artist_names = metadata["artist"]
         musicbrainz_artist_ids = []
@@ -475,7 +467,7 @@ class Track(BaseModel):
                 row = rows.fetchone()
 
             if row:
-                artist = Artist(id=row["id"], db=db, name=row["name"],
+                artist = Artist(id=row["id"], db=database, name=row["name"],
                                 sortname=row["sortname"],
                                 musicbrainz_artistid=row[
                                     "musicbrainz_artistid"])
@@ -499,7 +491,7 @@ class Track(BaseModel):
                           (artist_name, artistsort, musicbrainz_artistid))
 
                 artist = Artist(
-                    id=c.lastrowid, db=db, name=artist_name,
+                    id=c.lastrowid, db=database, name=artist_name,
                     sortname=artistsort,
                     musicbrainz_artistid=musicbrainz_artistid
                 )
@@ -534,15 +526,15 @@ class Track(BaseModel):
             row = rows.fetchone()
 
             if row:
-                album = Album(id=row["id"], db=db, name=row["name"],
+                album = Album(id=row["id"], db=database, name=row["name"],
                               date=row["date"], musicbrainz_albumid=row[
-                    "musicbrainz_albumid"])
+                                  "musicbrainz_albumid"])
             else:
                 c.execute("INSERT INTO album (name, `date`, "
                           "musicbrainz_albumid) VALUES (?, ?, ?)",
                           (album_name, album_date, mb_albumid))
 
-                album = Album(id=c.lastrowid, db=db, name=album_name,
+                album = Album(id=c.lastrowid, db=database, name=album_name,
                               date=album_date, musicbrainz_albumid=mb_albumid)
 
         elif album_name:
@@ -554,13 +546,13 @@ class Track(BaseModel):
                 row = rows.fetchone()
 
                 if row:
-                    album = Album(id=row["id"], db=db, name=row["name"],
+                    album = Album(id=row["id"], db=database, name=row["name"],
                                   date=row["date"])
                 else:
                     c.execute("INSERT INTO album (name, `date`) VALUES(?, ?)",
                               (album_name, album_date))
 
-                    album = Album(id=c.lastrowid, db=db, name=album_name,
+                    album = Album(id=c.lastrowid, db=database, name=album_name,
                                   date=album_date)
 
         for artist in artists:
@@ -591,7 +583,7 @@ class Track(BaseModel):
         rows = c.execute("SELECT * FROM track WHERE filename = ?", (filename,))
         row = rows.fetchone()
         if row:
-            track = Track(id=row["id"], db=db,
+            track = Track(id=row["id"], db=database,
                           tracknumber=row["tracknumber"], name=row["name"],
                           grouping=row["grouping"], filename=row["filename"])
         else:
@@ -600,7 +592,7 @@ class Track(BaseModel):
                       (track_number, track_name, track_grouping,
                        filename))
 
-            track = Track(id=c.lastrowid, db=db, tracknumber=track_number,
+            track = Track(id=c.lastrowid, db=database, tracknumber=track_number,
                           name=track_name, grouping=track_grouping,
                           filename=filename)
 
@@ -618,16 +610,14 @@ class Track(BaseModel):
             except sqlite3.IntegrityError:
                 pass
 
-        db.commit()
+        database.commit()
         c.close()
 
         return track
 
-    def all(db=None, order="track.id", direction="ASC", limit=None,
+    @classmethod
+    def all(cls, database, order="track.id", direction="ASC", limit=None,
             offset=None):
-        if not db:
-            db = DbManager()
-
         tracks = []
 
         select_string = "SELECT * FROM track LEFT JOIN artist_track ON " \
@@ -641,10 +631,10 @@ class Track(BaseModel):
             select_string = " ".join((select_string,
                                       "LIMIT %s OFFSET %s" % (limit, offset)))
 
-        result = db.execute(select_string)
+        result = database.execute(select_string)
 
         for row in result:
-            tracks.append(Track(id=row["id"], db=db,
+            tracks.append(Track(id=row["id"], db=database,
                                 tracknumber=row["tracknumber"],
                                 name=row["name"], grouping=row["name"],
                                 filename=row["filename"]))

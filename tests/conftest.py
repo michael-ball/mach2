@@ -8,8 +8,8 @@ from db.db_manager import DbManager
 @pytest.fixture(scope="module")
 def database(request):
     database = DbManager(
-        db=os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        "test.db"))
+        os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                     "test.db"))
 
     def fin():
         database.close()
@@ -32,8 +32,8 @@ def app(request):
     db = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                       "testapp.db")
     library_db = DbManager(
-        db=os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        "test.db"))
+        os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                     "test.db"))
 
     def fin():
         library_db.close()

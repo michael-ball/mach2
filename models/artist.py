@@ -1,17 +1,15 @@
 from common import utils
-from db.db_manager import DbManager
 from models.base import BaseModel
 
 
 class Artist(BaseModel):
 
-    def __init__(self, id=None, db=None, **kwargs):
-        if db:
-            self.db = db
+    def __init__(self, db, id=None, **kwargs):
+        self._db = db
 
         if id is not None:
-            for row in self.db.execute("SELECT * FROM artist WHERE id = ?",
-                                       (id,)):
+            for row in self._db.execute("SELECT * FROM artist WHERE id = ?",
+                                        (id,)):
                 for key in ["id", "name", "sortname", "musicbrainz_artistid"]:
                     setattr(self, key, row[key])
         else:
@@ -22,25 +20,21 @@ class Artist(BaseModel):
         for album in self.albums:
             album.delete()
 
-        with self.db.conn:
+        with self._db.conn:
             delete_artist = "DELETE FROM artist WHERE id = ?"
-            self.db.execute(delete_artist, (self.id,))
+            self._db.execute(delete_artist, (self.id,))
 
             delete_track_rel = "DELETE FROM artist_track WHERE artist_id = ?"
-            self.db.execute(delete_track_rel, (self.id,))
+            self._db.execute(delete_track_rel, (self.id,))
 
             delete_album_rel = "DELETE FROM album_artist WHERE artist_id = ?"
-            self.db.execute(delete_album_rel, (self.id,))
+            self._db.execute(delete_album_rel, (self.id,))
 
         return True
 
     @property
     def db(self):
-        try:
-            return self._db
-        except AttributeError:
-            self._db = DbManager()
-            return self._db
+        return self._db
 
     @db.setter
     def db(self, db):
@@ -53,13 +47,13 @@ class Artist(BaseModel):
         if not hasattr(self, "_tracks"):
             setattr(self, "_tracks", [])
 
-            for row in self.db.execute("SELECT track.* FROM track INNER "
-                                       "JOIN artist_track ON track.id = "
-                                       "artist_track.track_id WHERE "
-                                       "artist_id = ? ORDER BY name ASC",
-                                       (self.id,)):
+            for row in self._db.execute("SELECT track.* FROM track INNER "
+                                        "JOIN artist_track ON track.id = "
+                                        "artist_track.track_id WHERE "
+                                        "artist_id = ? ORDER BY name ASC",
+                                        (self.id,)):
 
-                track = Track(id=row["id"], db=self.db,
+                track = Track(id=row["id"], db=self._db,
                               tracknumber=row["tracknumber"], name=row["name"],
                               grouping=row["grouping"],
                               filename=row["filename"])
@@ -74,12 +68,12 @@ class Artist(BaseModel):
         if not hasattr(self, "_albums"):
             setattr(self, "_albums", [])
 
-            for row in self.db.execute("SELECT album.* FROM album INNER "
-                                       "JOIN album_artist ON album.id = "
-                                       "album_artist.album_id WHERE "
-                                       "artist_id = ? ORDER BY date ASC",
-                                       (self.id,)):
-                album = Album(id=row["id"], db=self.db, name=row["name"],
+            for row in self._db.execute("SELECT album.* FROM album INNER "
+                                        "JOIN album_artist ON album.id = "
+                                        "album_artist.album_id WHERE "
+                                        "artist_id = ? ORDER BY date ASC",
+                                        (self.id,)):
+                album = Album(id=row["id"], db=self._db, name=row["name"],
                               date=row["date"])
                 self._albums.append(album)
 
@@ -98,12 +92,13 @@ class Artist(BaseModel):
 
             dirty_attributes[id] = self.id
 
-            sql = " ".join(("UPDATE artist"), set_clause, "WHERE id = :id")
+            sql = " ".join(("UPDATE artist", set_clause, "WHERE id = :id"))
 
-            with self.db.conn:
-                self.db.execute(sql, dirty_attributes)
+            with self._db.conn:
+                self._db.execute(sql, dirty_attributes)
 
-    def search(db=None, **search_params):
+    @classmethod
+    def search(cls, database, **search_params):
         """Find an artist with the given params
 
         Args:
@@ -112,9 +107,6 @@ class Artist(BaseModel):
             musicbrainz_artist_id: dict, with 'data' and 'operator' keys
         """
         artists = []
-
-        if not db:
-            db = DbManager()
 
         # unpack search params
         where_params = {}
@@ -128,23 +120,22 @@ class Artist(BaseModel):
         result = []
         if where_clause:
             statement = " ".join(("SELECT * FROM artist", where_clause))
-            result = db.execute(statement, value_params)
+            result = database.execute(statement, value_params)
         else:
-            result = db.execute("SELECT * FROM artist")
+            result = database.execute("SELECT * FROM artist")
 
         for row in result:
             artists.append(
-                Artist(id=row["id"], db=db, name=row["name"],
+                Artist(id=row["id"], db=database, name=row["name"],
                        sortname=row["sortname"],
                        musicbrainz_artistid=row["musicbrainz_artistid"])
             )
 
         return artists
 
-    def all(db=None, order="sortname", direction="ASC", limit=None,
+    @classmethod
+    def all(cls, database, order="sortname", direction="ASC", limit=None,
             offset=None):
-        if not db:
-            db = DbManager()
 
         artists = []
 
@@ -155,11 +146,11 @@ class Artist(BaseModel):
             select_string = " ".join((select_string,
                                       "LIMIT %s OFFSET %s" % (limit, offset)))
 
-        result = db.execute(select_string)
+        result = database.execute(select_string)
 
         for row in result:
             artists.append(
-                Artist(id=row["id"], db=db, name=row["name"],
+                Artist(id=row["id"], db=database, name=row["name"],
                        sortname=row["sortname"],
                        musicbrainz_artistid=row["musicbrainz_artistid"])
             )

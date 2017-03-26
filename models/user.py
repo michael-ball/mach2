@@ -1,11 +1,11 @@
-import os
+from os import urandom
 
-from flask.ext.login import make_secure_token
+from itsdangerous import URLSafeTimedSerializer
 
 from common.security import pwd_context, secret_key
 
 
-class User:
+class User(object):
     def __init__(self, **kwargs):
         for (key, value) in kwargs.items():
             setattr(self, key, value)
@@ -43,16 +43,17 @@ class User:
 
     def new_password(self, password, category=None):
         if self.id:
-            hash = None
+            the_hash = None
 
             if category:
-                hash = pwd_context.encrypt(password, category=category)
+                the_hash = pwd_context.encrypt(password, category=category)
             else:
-                hash = pwd_context.encrypt(password)
+                the_hash = pwd_context.encrypt(password)
 
-            api_key = make_secure_token(hash, os.urandom(64), key=secret_key)
+            serializer = URLSafeTimedSerializer(password, salt=urandom(64))
+            api_key = serializer.dumps(the_hash)
 
-            return hash, api_key
+            return the_hash, api_key
 
         else:
             raise ValueError("No user")

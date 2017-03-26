@@ -2,20 +2,20 @@ from models.album import Album
 
 
 def test_instance(database):
-    album = Album(id=1, db=database)
+    album = Album(database, 1)
     assert album.id == 1
     assert album.name == "Album 1"
     assert album.date == "1999-02-04"
 
 
 def test_artists(database):
-    album = Album(id=1, db=database)
+    album = Album(database, 1)
     assert len(album.artists) == 1
     assert album.artists[0].name == "Artist 2"
 
 
 def test_tracks(database):
-    album = Album(id=1, db=database)
+    album = Album(database, 1)
     assert len(album.tracks) == 2
     assert album.tracks[0].name == "Album track 1"
     assert album.tracks[0].tracknumber == 1
@@ -36,28 +36,28 @@ def test_delete(database):
         album_id = cursor.lastrowid
         cursor.close()
 
-        album = Album(album_id, db=database)
+        album = Album(database, album_id)
 
         assert album.delete()
 
-    test_album = Album(album_id, db=database)
+    test_album = Album(database, album_id)
     assert not hasattr(test_album, "name")
 
 
 def test_search(database):
     search_payload = {"name": {"data": "Album 1", "operator": "="}}
-    album_results = Album.search(db=database, **search_payload)
+    album_results = Album.search(database, **search_payload)
 
     assert len(album_results) > 0
 
     invalid_search_payload = {"name": {"data": "This album does not exist",
                                        "operator": "="}}
-    no_album_results = Album.search(db=database, **invalid_search_payload)
+    no_album_results = Album.search(database, **invalid_search_payload)
 
     assert len(no_album_results) == 0
 
 
 def test_all(database):
-    album_results = Album.all(db=database)
+    album_results = Album.all(database)
 
     assert len(album_results) > 0
