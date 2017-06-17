@@ -1,5 +1,5 @@
+"""An app to serve a music library."""
 import base64
-import json
 import os
 import subprocess
 import sqlite3
@@ -7,8 +7,8 @@ import tempfile
 
 import mimetypes
 
-from flask import (Blueprint, Flask, Response, current_app, g, redirect,
-                   render_template, request, url_for)
+from flask import (Blueprint, Flask, Response, abort, current_app, g, jsonify,
+                   redirect, render_template, request, url_for)
 from flask_compress import Compress
 from flask_login import (LoginManager, current_user, login_required,
                          login_user, logout_user)
@@ -31,6 +31,7 @@ _LOGIN_MANAGER.login_view = "mach2.login"
 
 
 def get_db():
+    """Get the application database."""
     database = getattr(g, "_database", None)
     if database is None:
         database = sqlite3.connect(current_app.config["DATABASE"])
@@ -42,12 +43,14 @@ def get_db():
 
 @MACH2.teardown_app_request
 def close_connection(exception):
+    """Close the database connection."""
     database = getattr(g, "_database", None)
     if database is not None:
         database.close()
 
 
 def query_db(query, args=(), one=False):
+    """Query the application database."""
     cur = get_db().execute(query, args)
     result = cur.fetchall()
     cur.close()
@@ -56,6 +59,12 @@ def query_db(query, args=(), one=False):
 
 @_LOGIN_MANAGER.request_loader
 def load_user_from_request(req):
+    """Load the user from the request.
+
+    Args:
+        req (flask.Request): The request object.
+
+    """
     # first, try to login using the api_key url arg
     api_key = req.args.get('api_key', None)
 
@@ -94,6 +103,7 @@ def load_user_from_request(req):
 @MACH2.route("/")
 @login_required
 def index():
+    """Return the index."""
     return render_template("index.html", user=current_user)
 
 
@@ -144,7 +154,7 @@ def albums():
     for returned_album in returned_albums:
         result_albums.append(returned_album.as_dict())
 
-    return json.dumps(result_albums)
+    return jsonify(result_albums)
 
 
 @MACH2.route("/albums/<int:album_id>/tracks")
@@ -156,7 +166,7 @@ def album_tracks(album_id):
     for album_track in returned_album.tracks:
         result_tracks.append(album_track.as_dict())
 
-    return json.dumps(result_tracks)
+    return jsonify(result_tracks)
 
 
 @MACH2.route("/albums/<int:album_id>/artists")
@@ -168,7 +178,7 @@ def album_artists(album_id):
     for album_artist in returned_album.artists:
         result_artists.append(album_artist.as_dict())
 
-    return json.dumps(result_artists)
+    return jsonify(result_artists)
 
 
 @MACH2.route("/albums/<int:album_id>")
@@ -176,7 +186,7 @@ def album_artists(album_id):
 def album(album_id):
     returned_album = Album(current_app.config["LIBRARY"], id=album_id)
 
-    return json.dumps(returned_album.as_dict())
+    return jsonify(returned_album.as_dict())
 
 
 @MACH2.route("/albums/<album_name>")
@@ -189,7 +199,7 @@ def album_search(album_name):
                                              "operator": "LIKE"}):
         result_albums.append(returned_album.as_dict())
 
-    return json.dumps(result_albums)
+    return jsonify(result_albums)
 
 
 @MACH2.route("/artists")
@@ -226,7 +236,7 @@ def artists():
     for returned_artist in returned_artists:
         result_artists.append(returned_artist.as_dict())
 
-    return json.dumps(result_artists)
+    return jsonify(result_artists)
 
 
 @MACH2.route("/artists/<int:artist_id>/tracks")
@@ -238,7 +248,7 @@ def artist_tracks(artist_id):
     for artist_track in returned_artist.tracks:
         result_tracks.append(artist_track.as_dict())
 
-    return json.dumps(result_tracks)
+    return jsonify(result_tracks)
 
 
 @MACH2.route("/artists/<int:artist_id>/albums")
@@ -250,7 +260,7 @@ def artist_albums(artist_id):
     for artist_album in returned_artist.albums:
         result_albums.append(artist_album.as_dict())
 
-    return json.dumps(result_albums)
+    return jsonify(result_albums)
 
 
 @MACH2.route("/artists/<int:artist_id>")
@@ -258,7 +268,7 @@ def artist_albums(artist_id):
 def artist_info(artist_id):
     artist = Artist(current_app.config["LIBRARY"], id=artist_id)
 
-    return json.dumps(artist.as_dict())
+    return jsonify(artist.as_dict())
 
 
 @MACH2.route("/artists/<artist_name>")
@@ -272,7 +282,7 @@ def artist_search(artist_name):
     }):
         result_artists.append(artist.as_dict())
 
-    return json.dumps(artists)
+    return jsonify(artists)
 
 
 @MACH2.route("/tracks")
@@ -308,7 +318,7 @@ def tracks():
     for returned_track in returned_tracks:
         result_tracks.append(returned_track.as_dict())
 
-    return json.dumps(result_tracks)
+    return jsonify(result_tracks)
 
 
 @MACH2.route("/tracks/<int:track_id>/artists")
@@ -320,7 +330,7 @@ def track_artists(track_id):
     for track_artist in returned_track.artists:
         result_artists.append(track_artist.as_dict())
 
-    return json.dumps(result_artists)
+    return jsonify(result_artists)
 
 
 @MACH2.route("/tracks/<int:track_id>")
@@ -375,20 +385,126 @@ def track_search(track_name):
                                              "operator": "LIKE"}):
         result_tracks.append(returned_track.as_dict())
 
-    return json.dumps(result_tracks)
+    return jsonify(result_tracks)
+
+
+@MACH2.route("/user", defaults={"user_id": None},
+             methods=["GET", "POST", "PUT"])
+@MACH2.route("/user/<int:user_id>", methods=["DELETE", "GET", "PUT"])
+@login_required
+def users(user_id):
+    """Create, retrieve, update or delete a user.
+
+    Args:
+        user_id (obj:`int`, optional): The ID of the user. Defaults to None.
+            If none, and the request uses a GET or PUT method, this works
+            on the currently logged in user.
+
+    """
+    def update_user(user, user_data):
+        """Update the user with the supplied data.
+
+        Args:
+            user (obj:`User`): The user to update.
+            user_data (obj:`Dict[str, str]`): The data to update the user with.
+
+        """
+        db_conn = get_db()
+        if "password" in user_data:
+            password_hash, api_key = user.new_password(
+                user_data["password"])
+
+            update_query = ("UPDATE user SET password_hash = ?, "
+                            "api_key = ? WHERE id = ?")
+
+            rows_updated = 0
+
+            with db_conn:
+                rows_updated = get_db().execute(
+                    update_query, (password_hash, api_key, user.id))
+
+            if rows_updated > 0:
+                user.password_hash = password_hash
+                user.api_key = api_key
+            else:
+                error = dict(message="Unable to update user")
+                return jsonify(error), 500
+
+        if "transcode_command" in user_data:
+            update_query = ("UPDATE user SET transcode_command = ? "
+                            "WHERE id = ?")
+
+            rows_updated = 0
+
+            with db_conn:
+                rows_updated = db_conn.execute(
+                    update_query, (user_data["transcode_command"], user.id))
+
+            if rows_updated > 0:
+                user.transcode_command = user_data[
+                    "transcode_command"]
+            else:
+                error = dict(message="Unable to update user")
+                return jsonify(error), 500
+
+        return jsonify(user.to_dict())
+
+    if user_id:
+        local_user = load_user(user_id)
+
+        if not local_user:
+            abort(404)
+
+        if request.method == "DELETE":
+            query = "DELETE FROM user WHERE user = ?"
+
+            get_db().execute(query, user_id)
+
+            return "", 204
+
+        elif request.method == "PUT":
+            user_data = request.get_json()
+
+            if not user_data:
+                abort(415)
+
+            return update_user(local_user, user_data)
+
+    else:
+        if request.method == "POST":
+
+            new_user_data = request.get_json()
+
+            if not new_user_data:
+                abort(415)
+
+            #  TODO: create new user and return the object
+
+        local_user = load_user(current_user.id)
+
+        if request.method == "PUT":
+            user_data = request.get_json()
+
+            if not user_data:
+                abort(415)
+
+            return update_user(local_user, user_data)
+
+        return jsonify(local_user.to_dict())
 
 
 @_LOGIN_MANAGER.user_loader
-def load_user(userid):
-    user = None
-    result = query_db("SELECT * FROM user WHERE id = ?", [userid], one=True)
+def load_user(user_id):
+    local_user = None
+    result = query_db("SELECT * FROM user WHERE id = ?", [user_id], one=True)
 
     if result:
-        user = User(id=result[0], username=result[1], password_hash=result[2],
-                    authenticated=1, active=result[4], anonymous=0,
-                    transcode_command=result[7])
+        local_user = User(
+            id=result[0], username=result[1],password_hash=result[2],
+            authenticated=1, active=result[4], anonymous=0,
+            transcode_command=result[7])
 
-    return user
+    return local_user
 
 
 @MACH2.route("/login", methods=["GET", "POST"])

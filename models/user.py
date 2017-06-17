@@ -1,8 +1,9 @@
+"""Define a user."""
 from os import urandom
 
 from itsdangerous import URLSafeTimedSerializer
 
-from common.security import pwd_context, secret_key
+from common.security import pwd_context
 
 
 class User(object):
@@ -57,3 +58,14 @@ class User(object):
 
         else:
             raise ValueError("No user")
+
+    def to_dict(self):
+        """Return a dict representation of the user."""
+        return_dict = dict()
+        for key, item in self.__dict__.items():
+            try:
+                return_dict[key] = item.to_dict()
+            except AttributeError:
+                return_dict[key] = item
+
+        return return_dict
