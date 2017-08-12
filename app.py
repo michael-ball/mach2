@@ -21,4 +21,4 @@ if __name__ == "__main__":
     http_server = WSGIServer(('', 5000), APP, log=None)
     server = spawn(http_server.serve_forever)
 
-    joinall([server, watcher])
+    joinall([watcher, server])
