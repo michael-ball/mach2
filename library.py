@@ -3,10 +3,11 @@
 import logging
 import os
 
-from gevent import joinall, monkey, queue, sleep, spawn
+from gevent import monkey, queue
+from gevent.pool import Group
 import mutagen
 import six
-from six.moves import configparser
+from six.moves import configparser, range
 
 from db.db_manager import DbManager
 from models.track import Track
@@ -44,12 +45,12 @@ class MediaLibrary(object):
             file_queue (Queue[str]): A queue containing file paths.
 
         """
-        while not file_queue.empty():
+        try:
             path = file_queue.get()
             metadata = mutagen.File(path, easy=True)
             Track.store(_u(path), metadata, self.__database)
-
-            sleep(0)
+        except queue.Empty:
+            pass
 
     def run(self, path=None):
         """Store all tracks located in the supplied path.
@@ -102,7 +103,13 @@ class MediaLibrary(object):
                     file_queue.put(file_path)
 
         _LOGGER.info("Storing tracks")
-        joinall([spawn(self.store_track_task, file_queue)] * 18)
+
+        tasks = Group()
+        for i in range(file_queue.qsize()):
+            tasks.spawn(self.store_track_task, file_queue)
+
+        tasks.join()
+
         _LOGGER.info("Done")
 
     def delete_file(self, path):
