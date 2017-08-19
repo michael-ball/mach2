@@ -126,9 +126,6 @@ class LibraryWatcher(object):
 
         register(self.stop)
 
-        while True:
-            self.check_for_events()
-
     def stop(self):
         """Remove all the watched paths."""
         if self.wdd[self.path] > 0:

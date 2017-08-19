@@ -15,10 +15,18 @@ APP = create_app()
 if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("mach2.ini")
-    watcher = spawn(LibraryWatcher, config.get("DEFAULT", "media_dir"),
-                    config.get("DEFAULT", "library"))
 
     http_server = WSGIServer(('', 5000), APP, log=None)
     server = spawn(http_server.serve_forever)
 
-    joinall([watcher, server])
+    watcher = LibraryWatcher(config.get("DEFAULT", "media_dir"),
+                             config.get("DEFAULT", "library"))
+
+    def check_for_events():
+        """Check for changes in the library."""
+        while True:
+            watcher.check_for_events()
+
+    watcher_routine = spawn(check_for_events)
+
+    joinall([watcher_routine, server])
